@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Walkie Talkie Translator</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#090A0F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Translator">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#090A0F;
+    --panelA:#0F1015;
+    --panelB:#08090C;
+    --surface:#121318;
+    --card:#16171E;
+    --cyan:#00E5FF;
+    --red:#FF5252;
+    --amber:#FFC107;
+    --border:rgba(255,255,255,0.10);
+    --border2:rgba(255,255,255,0.18);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  button, .micBtn, .camBtn, .sendBtn, #autoBtn, #settingsBtn, .replayBtn{
+    transition:transform .1s ease, background .15s ease, box-shadow .15s ease;
+  }
+  button:active, .micBtn:active, .camBtn:active, .sendBtn:active, #autoBtn:active, #settingsBtn:active, .replayBtn:active{
+    transform:scale(0.92);
+  }
+  .micBtn, .camBtn{ box-shadow:0 2px 6px rgba(0,0,0,0.35); }
+  .bubble{ box-shadow:0 3px 10px rgba(0,0,0,0.3); }
+  #modalCard{ box-shadow:0 8px 30px rgba(0,0,0,0.5); }
+  html,body{height:100%;margin:0; overscroll-behavior:none;}
+  body{
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Myanmar Text",sans-serif;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    height:100dvh;
+    overflow:hidden;
+    -webkit-text-size-adjust:100%;
+  }
+
+  /* ===== Status Bar ===== */
+  #statusBar{
+    padding:6px 16px;
+    padding-top:calc(6px + env(safe-area-inset-top));
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-size:11px;
+    font-weight:700;
+    background:#E65100;
+    flex-shrink:0;
+    transition:background .2s;
+    z-index:20;
+  }
+  #statusBar.online{background:#1E88E5;}
+  #statusBar .left{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;}
+  #statusBar .left svg{flex-shrink:0;}
+  #statusText{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #statusBar svg{width:14px;height:14px;fill:#fff;}
+  #settingsBtn{cursor:pointer;display:flex;touch-action:manipulation;}
+  #autoBtn{
+    display:flex;align-items:center;gap:5px;cursor:pointer;
+    padding:4px 9px;border-radius:20px;border:1px solid rgba(255,255,255,0.35);
+    background:rgba(0,0,0,0.2);font-size:10px;font-weight:800;letter-spacing:.2px;
+    transition:background .15s,border-color .15s;
+    touch-action:manipulation;
+  }
+  #autoBtn svg{width:11px;height:11px;fill:#fff;}
+  #autoBtn.on{background:#00E5FF;border-color:#00E5FF;color:#000;}
+  #autoBtn.on svg{fill:#000;}
+  .barRight{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .autoPulse{
+    width:7px;height:7px;border-radius:50%;background:#000;display:none;
+  }
+  #autoBtn.on.pulsing .autoPulse{display:block;animation:autopulse 1s ease-in-out infinite;}
+  @keyframes autopulse{0%,100%{opacity:.3;}50%{opacity:1;}}
+  @media (max-width:360px){
+    #autoBtn span:not(.autoPulse){display:none;}
+    #autoBtn{padding:6px;}
+    #statusText{max-width:38vw;}
+  }
+
+  /* ===== Panels ===== */
+  .panel{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    overflow:hidden;
+  }
+  #panelA{background:var(--panelA); border-bottom:2px solid var(--border); transform:rotate(180deg);}
+  #panelB{background:var(--panelB);}
+
+  .panel-header{
+    padding:8px 16px;
+    background:rgba(0,0,0,0.25);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-shrink:0;
+  }
+  .panel-header .who{display:flex;align-items:center;gap:8px;}
+  .dot{width:8px;height:8px;border-radius:50%;}
+  .panel-header .label{font-weight:700;font-size:13px;color:rgba(255,255,255,0.7);}
+
+  select.langSelect{
+    background:var(--card);
+    color:#fff;
+    border:1px solid var(--border2);
+    border-radius:20px;
+    padding:6px 10px;
+    font-size:13px;
+    font-weight:700;
+    font-family:inherit;
+  }
+
+  .chatLog{
+    flex:1;
+    overflow-y:auto;
+    padding:12px;
+    display:flex;
+    flex-direction:column-reverse;
+    gap:0;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  .chatLog::-webkit-scrollbar{width:4px;}
+  .chatLog::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:4px;}
+
+  .emptyState{
+    margin:auto;
+    text-align:center;
+    color:rgba(255,255,255,0.24);
+    font-size:11px;
+    line-height:1.5;
+  }
+  .emptyState svg{width:36px;height:36px;fill:rgba(255,255,255,0.24);margin-bottom:8px;}
+
+  .bubbleRow{display:flex;margin:6px 0;}
+  .bubbleRow.mine{justify-content:flex-end;}
+  .bubbleRow.theirs{justify-content:flex-start;}
+
+  .bubble{
+    max-width:82%;
+    padding:12px;
+    border-radius:12px;
+    border:0.5px solid var(--border);
+  }
+  .bubbleRow.mine .bubble{background:#1A1C24; border-top-right-radius:0;}
+  .bubbleRow.theirs .bubble{background:#2E1C1F; border-top-left-radius:0;}
+
+  .bubble .topRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;}
+  .bubble .tag{font-size:9px;font-weight:700;}
+  .bubble .badges{display:flex;align-items:center;gap:6px;}
+  .bubble .mainText{color:#fff;font-size:13.5px;font-weight:700;line-height:1.4;}
+  .bubble hr{border:none;border-top:1px solid rgba(255,255,255,0.08);margin:10px 0;}
+  .bubble .subRow{display:flex;justify-content:space-between;align-items:center;}
+  .bubble .subLabel{color:#888;font-size:9px;}
+  .bubble .subText{color:rgba(255,255,255,0.7);font-size:12px;margin-top:4px;}
+  .bubble .bottomRow{display:flex;justify-content:flex-end;margin-top:6px;}
+  .replayBtn{
+    width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.35);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;
+    touch-action:manipulation;
+  }
+  .replayBtn svg{width:12px;height:12px;fill:rgba(255,255,255,0.7);}
+  .voiceIcon{width:10px;height:10px;fill:rgba(255,255,255,0.5);}
+  .approxBadge{color:var(--amber);font-size:8px;font-weight:700;border:1px solid var(--amber);border-radius:8px;padding:1px 5px;}
+  .dotFlicker{opacity:.5;animation:flicker 1s ease-in-out infinite;}
+  @keyframes flicker{0%,100%{opacity:.35;}50%{opacity:.85;}}
+  .errorDetail{
+    margin-top:6px;font-size:9px;color:var(--red);
+    background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);
+    border-radius:6px;padding:4px 7px;word-break:break-word;
+  }
+  .offlineBadge{color:#888;font-size:8px;font-weight:700;border:1px solid #555;border-radius:8px;padding:1px 5px;}
+
+  /* ===== Input Row ===== */
+  .inputRow{
+    padding:12px 16px;
+    background:rgba(0,0,0,0.25);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-shrink:0;
+  }
+  #panelB .inputRow{
+    padding-bottom:calc(12px + env(safe-area-inset-bottom));
+  }
+  .textFieldWrap{
+    flex:1;
+    height:46px;
+    background:rgba(0,0,0,0.25);
+    border:1px solid var(--border);
+    border-radius:24px;
+    display:flex;
+    align-items:center;
+    padding:0 6px 0 14px;
+  }
+  .textFieldWrap input{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:#fff;
+    font-size:16px;
+    font-family:inherit;
+    touch-action:manipulation;
+  }
+  .textFieldWrap input::placeholder{color:#888;}
+  .sendBtn{
+    background:none;border:none;cursor:pointer;padding:8px;display:flex;
+    touch-action:manipulation;
+  }
+  .sendBtn svg{width:17px;height:17px;fill:var(--cyan);}
+
+  .camBtn{
+    width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    background:rgba(255,255,255,0.08);
+    border:none;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .camBtn svg{width:19px;height:19px;fill:#fff;}
+  .camBtn.busy{opacity:0.5;pointer-events:none;}
+  .scanBadge{color:var(--cyan);font-size:8px;font-weight:700;border:1px solid var(--cyan);border-radius:8px;padding:1px 5px;}
+
+  .micBtn{
+    width:52px;height:52px;border-radius:50%;flex-shrink:0;
+    background:rgba(255,255,255,0.08);
+    border:none;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:background .15s, box-shadow .15s;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:manipulation;
+  }
+  .micBtn svg{width:24px;height:24px;fill:#fff;}
+  .micBtn.listening.A{background:var(--cyan); box-shadow:0 0 16px 4px rgba(0,229,255,0.5);}
+  .micBtn.listening.B{background:var(--red); box-shadow:0 0 16px 4px rgba(255,82,82,0.5);}
+  .micBtn.listening svg{fill:#000;}
+  .micBtn.busy{opacity:0.6;pointer-events:none;}
+  .spinner{
+    width:20px;height:20px;border:2px solid rgba(0,0,0,0.3);border-top-color:#000;
+    border-radius:50%;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ===== Divider ===== */
+  #divider{
+    height:2px;background:rgba(255,255,255,0.12);
+    position:relative; flex-shrink:0; z-index:10;
+  }
+  #dividerBadge{
+    position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+    background:var(--surface); border:0.5px solid var(--border2); border-radius:12px;
+    padding:4px 12px; display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  #dividerBadge svg{width:12px;height:12px;fill:var(--cyan);}
+  #dividerBadge span{font-size:9px;font-weight:700;color:rgba(255,255,255,0.8);}
+
+  /* ===== Modal ===== */
+  #modalOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    display:none; align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  #modalOverlay.show{display:flex;}
+  #modalCard{
+    background:var(--card); border-radius:16px; padding:20px; width:100%; max-width:360px;
+    max-height:85vh; overflow-y:auto;
+  }
+  #modalCard h2{
+    display:flex; align-items:center; gap:8px; font-size:15px; margin:0 0 16px;
+  }
+  #modalCard h2 svg{width:18px;height:18px;fill:var(--cyan);}
+  .fieldLabel{font-size:13px;font-weight:700;color:rgba(255,255,255,0.7);margin-bottom:6px;display:block;}
+  .fieldHint{font-size:10px;color:#888;margin-top:6px;line-height:1.5;}
+  .fieldHint a{color:var(--cyan);}
+  #apiKeyInput{
+    width:100%; background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; color:#fff; font-size:13px; font-family:inherit; outline:none;
+  }
+  .toggleRow{display:flex;justify-content:space-between;align-items:center;margin-top:16px;}
+  .toggleRow .desc{font-size:10px;color:#888;margin-top:2px;}
+  .switch{position:relative;width:42px;height:24px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:#333;border-radius:24px;cursor:pointer;transition:.2s;}
+  .slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+  .switch input:checked + .slider{background:var(--cyan);}
+  .switch input:checked + .slider:before{transform:translateX(18px);}
+  hr.divide{border:none;border-top:1px solid rgba(255,255,255,0.15);margin:18px 0;}
+  #modalCard .mapNote{color:#888;font-size:11px;line-height:1.6;white-space:pre-line;}
+  .modalActions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .btnGhost, .btnPrimary{
+    padding:10px 18px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+  }
+  .btnGhost{background:transparent;color:#888;}
+  .btnPrimary{background:var(--cyan);color:#000;}
+</style>
+</head>
+<body>
+
+<div id="statusBar">
+  <div class="left">
+    <svg id="statusIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.28.85 4.36 2.25 5.95L12 12l6.75 5.95C20.15 16.36 21 14.28 21 12c0-4.97-4.03-9-9-9z"/></svg>
+    <span id="statusText">Offline Mode (Limited)</span>
+  </div>
+  <div class="barRight">
+    <div id="autoBtn" title="Hands-free back-and-forth: mic auto-restarts on the other side after each reply">
+      <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
+      <span>AUTO CHAT</span>
+      <span class="autoPulse"></span>
+    </div>
+    <div id="settingsBtn">
+      <svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+    </div>
+  </div>
+</div>
+
+<div id="panelA" class="panel"></div>
+<div id="divider">
+  <div id="dividerBadge">
+    <svg viewBox="0 0 24 24"><path d="M9.59 4.59A1.98 1.98 0 0 0 8.17 4H4c-1.1 0-2 .9-2 2v4c0 .55.22 1.05.59 1.41L9.83 18.66c.78.78 2.05.78 2.83 0l6.59-6.59c.78-.78.78-2.05 0-2.83L11.99 3H8.17a2 2 0 0 0-1.42.59L4 6.34"/></svg>
+    <span>Walkie-Talkie Channel</span>
+  </div>
+</div>
+<div id="panelB" class="panel"></div>
+
+<input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none">
+
+<!-- Settings Modal -->
+<div id="modalOverlay">
+  <div id="modalCard">
+    <h2>
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+      Settings
+    </h2>
+    <label class="fieldLabel">AI Translation Key</label>
+    <input id="apiKeyInput" type="password" placeholder="AIzaSy...">
+    <div class="fieldHint">Key ကို <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> မှာ အခမဲ့ ရယူနိုင်ပါတယ်။ Key ကို ဖုန်းထဲမှာပဲ သိမ်းထားပြီး ဘယ်နေရာကိုမှ ပို့မထားပါ။</div>
+    <div class="toggleRow">
+      <div>
+        <div style="font-size:13px;font-weight:700;">Force Offline Mode</div>
+        <div class="desc">Network မရှိတဲ့အခါ ဒါမှမဟုတ် စမ်းသပ်ချင်ရင် ဖွင့်ပါ</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="offlineToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <hr class="divide">
+    <div class="fieldLabel">Offline Translation Engine</div>
+    <div class="mapNote">• 30+ ready-made survival &amp; work phrases (all 4 languages)
+• 40+ core vocabulary words for compositional matching
+• Network မရှိချိန်မှာ ရိုက်ထည့်တဲ့စာကို အသိစကားလုံးတွေနဲ့ တွဲပြီး အနီးစပ်ဆုံး ဘာသာပြန်ပေးပါတယ်
+• Exact phrase မတွေ့ရင် "≈ approximate" ဆိုပြီး ပြပေးပါမယ်</div>
+    <div class="modalActions">
+      <button class="btnGhost" id="cancelBtn">CANCEL</button>
+      <button class="btnPrimary" id="applyBtn">APPLY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   LANGUAGES
+========================================================= */
+const LANGUAGES = [
+  {code:'en', name:'English (US)', flag:'🇺🇸', ttsLocale:'en-US'},
+  {code:'my', name:'Myanmar (မြန်မာ)', flag:'🇲🇲', ttsLocale:'my-MM'},
+  {code:'zh', name:'Chinese (中文)', flag:'🇨🇳', ttsLocale:'zh-CN'},
+  {code:'th', name:'Thai (ไทย)', flag:'🇹🇭', ttsLocale:'th-TH'},
+];
+const langByCode = c => LANGUAGES.find(l => l.code === c);
+
+/* =========================================================
+   OFFLINE TRANSLATION ENGINE
+   Unified multilingual table (phrase-level + word-level),
+   works for ANY of the 4 languages -> ANY of the 4 languages,
+   with exact match, substring match, and compositional
+   (word-by-word) fallback matching for network-down scenarios.
+========================================================= */
+const PHRASES = [
+  {en:"Hello.", my:"မင်္ဂလာပါ။", zh:"您好。", th:"สวัสดีครับ/ค่ะ"},
+  {en:"Thank you very much.", my:"ကျေးဇူးအများကြီးတင်ပါတယ်။", zh:"非常感谢您。", th:"ขอบคุณมากครับ/ค่ะ"},
+  {en:"Yes, that's correct.", my:"ဟုတ်ကဲ့၊ မှန်ပါတယ်။", zh:"是的，没错。", th:"ใช่ครับ/ค่ะ ถูกต้องแล้ว"},
+  {en:"No, that's not right.", my:"မဟုတ်ပါဘူး၊ မှန်မှုမရှိပါဘူး။", zh:"不，不对。", th:"ไม่ใช่ครับ/ค่ะ ไม่ถูกต้อง"},
+  {en:"Please help me.", my:"ကျေးဇူးပြု၍ ကူညီပေးပါ။", zh:"请帮帮我。", th:"กรุณาช่วยฉันด้วยครับ/ค่ะ"},
+  {en:"Please wait a moment.", my:"ခဏလေးစောင့်ပေးပါ။", zh:"请稍等一下。", th:"กรุณารอสักครู่ครับ/ค่ะ"},
+  {en:"The work is done.", my:"အလုပ်ပြီးပါပြီ။", zh:"工作已经完成了。", th:"งานเสร็จเรียบร้อยแล้วครับ/ค่ะ"},
+  {en:"The shipment has arrived.", my:"ပစ္စည်းများရောက်ရှိပါပြီ။", zh:"货物已经送到了。", th:"สินค้ามาถึงแล้วครับ/ค่ะ"},
+  {en:"How much does it cost?", my:"ဒါဘယ်လောက်ကျသလဲ။", zh:"这个多少钱？", th:"อันนี้ราคาเท่าไหร่ครับ/ค่ะ"},
+  {en:"I don't understand.", my:"နားမလည်ပါဘူး။", zh:"我不太明白。", th:"ไม่เข้าใจครับ/ค่ะ"},
+  {en:"Could you repeat that please?", my:"ကျေးဇူးပြု၍ ထပ်ပြောပေးပါ။", zh:"麻烦您再说一遍。", th:"ช่วยพูดอีกครั้งได้ไหมครับ/ค่ะ"},
+  {en:"Be careful, it's dangerous.", my:"သတိထားပါ၊ အန္တရာယ်ရှိပါတယ်။", zh:"小心，这很危险。", th:"ระวังนะครับ/ค่ะ อันตราย"},
+  {en:"Please slow down.", my:"ကျေးဇူးပြု၍ ဖြည်းဖြည်းလုပ်ပေးပါ။", zh:"请慢一点。", th:"กรุณาช้าลงหน่อยครับ/ค่ะ"},
+  {en:"Good morning.", my:"မင်္ဂလာနံနက်ခင်းပါ။", zh:"早上好。", th:"อรุณสวัสดิ์ครับ/ค่ะ"},
+  {en:"Good evening.", my:"မင်္ဂလာညနေခင်းပါ။", zh:"晚上好。", th:"สวัสดีตอนเย็นครับ/ค่ะ"},
+  {en:"See you tomorrow.", my:"မနက်ဖြန်တွေ့မယ်နော်။", zh:"明天见。", th:"แล้วเจอกันพรุ่งนี้ครับ/ค่ะ"},
+  {en:"I'm sorry.", my:"တောင်းပန်ပါတယ်။", zh:"对不起。", th:"ขอโทษครับ/ค่ะ"},
+  {en:"It's okay, no problem.", my:"ရပါတယ်၊ ပြဿနာမရှိပါဘူး။", zh:"没关系，没问题。", th:"ไม่เป็นไรครับ/ค่ะ"},
+  {en:"Where is the bathroom?", my:"အိမ်သာဘယ်မှာလဲ။", zh:"洗手间在哪里？", th:"ห้องน้ำอยู่ที่ไหนครับ/ค่ะ"},
+  {en:"I need to rest.", my:"ငါခဏနားချင်ပါတယ်။", zh:"我需要休息一下。", th:"ฉันต้องพักสักครู่ครับ/ค่ะ"},
+  {en:"Let's start work now.", my:"အခုအလုပ်စလုပ်ကြရအောင်။", zh:"我们现在开始工作吧。", th:"เริ่มทำงานกันเลยครับ/ค่ะ"},
+  {en:"Please check this.", my:"ဒါကိုစစ်ဆေးပေးပါ။", zh:"请检查一下这个。", th:"กรุณาตรวจสอบอันนี้ครับ/ค่ะ"},
+  {en:"This is broken.", my:"ဒါပျက်နေပါတယ်။", zh:"这个坏了。", th:"อันนี้เสียครับ/ค่ะ"},
+  {en:"I will call you.", my:"ငါဖုန်းဆက်မယ်နော်။", zh:"我会给你打电话。", th:"ฉันจะโทรหาคุณครับ/ค่ะ"},
+  {en:"What time is it now?", my:"အခုဘယ်နှစ်နာရီရှိပြီလဲ။", zh:"现在几点了？", th:"ตอนนี้กี่โมงแล้วครับ/ค่ะ"},
+  {en:"I am on my way.", my:"ငါလာနေပါပြီ။", zh:"我在路上了。", th:"ฉันกำลังไปครับ/ค่ะ"},
+  {en:"Please sign here.", my:"ဒီနေရာမှာလက်မှတ်ထိုးပေးပါ။", zh:"请在这里签名。", th:"กรุณาเซ็นชื่อตรงนี้ครับ/ค่ะ"},
+  {en:"Congratulations!", my:"ဂုဏ်ယူပါတယ်။", zh:"恭喜你！", th:"ยินดีด้วยครับ/ค่ะ"},
+  {en:"Take care of yourself.", my:"ကိုယ်ကိုယ်ကိုသေချာထိန်းသိမ်းပါ။", zh:"请照顾好自己。", th:"ดูแลตัวเองด้วยนะครับ/ค่ะ"},
+  {en:"Let's go.", my:"သွားကြရအောင်။", zh:"我们走吧。", th:"ไปกันเถอะครับ/ค่ะ"},
+];
+
+const WORDS = [
+  {en:"I", my:"ငါ", zh:"我", th:"ฉัน"},
+  {en:"you", my:"နင်", zh:"你", th:"คุณ"},
+  {en:"we", my:"ငါတို့", zh:"我们", th:"เรา"},
+  {en:"he", my:"သူ", zh:"他", th:"เขา"},
+  {en:"today", my:"ဒီနေ့", zh:"今天", th:"วันนี้"},
+  {en:"tomorrow", my:"မနက်ဖြန်", zh:"明天", th:"พรุ่งนี้"},
+  {en:"yesterday", my:"မနေ့က", zh:"昨天", th:"เมื่อวาน"},
+  {en:"now", my:"အခု", zh:"现在", th:"ตอนนี้"},
+  {en:"later", my:"နောက်မှ", zh:"稍后", th:"ทีหลัง"},
+  {en:"good", my:"ကောင်းတယ်", zh:"好", th:"ดี"},
+  {en:"bad", my:"မကောင်းဘူး", zh:"不好", th:"ไม่ดี"},
+  {en:"big", my:"ကြီးတယ်", zh:"大", th:"ใหญ่"},
+  {en:"small", my:"သေးတယ်", zh:"小", th:"เล็ก"},
+  {en:"hot", my:"ပူတယ်", zh:"热", th:"ร้อน"},
+  {en:"cold", my:"အေးတယ်", zh:"冷", th:"หนาว"},
+  {en:"water", my:"ရေ", zh:"水", th:"น้ำ"},
+  {en:"food", my:"အစားအစာ", zh:"食物", th:"อาหาร"},
+  {en:"money", my:"ငွေ", zh:"钱", th:"เงิน"},
+  {en:"work", my:"အလုပ်", zh:"工作", th:"งาน"},
+  {en:"home", my:"အိမ်", zh:"家", th:"บ้าน"},
+  {en:"go", my:"သွားတယ်", zh:"去", th:"ไป"},
+  {en:"come", my:"လာတယ်", zh:"来", th:"มา"},
+  {en:"eat", my:"စားတယ်", zh:"吃", th:"กิน"},
+  {en:"drink", my:"သောက်တယ်", zh:"喝", th:"ดื่ม"},
+  {en:"sleep", my:"အိပ်တယ်", zh:"睡觉", th:"นอน"},
+  {en:"buy", my:"ဝယ်တယ်", zh:"买", th:"ซื้อ"},
+  {en:"sell", my:"ရောင်းတယ်", zh:"卖", th:"ขาย"},
+  {en:"open", my:"ဖွင့်တယ်", zh:"开", th:"เปิด"},
+  {en:"close", my:"ပိတ်တယ်", zh:"关", th:"ปิด"},
+  {en:"fast", my:"မြန်တယ်", zh:"快", th:"เร็ว"},
+  {en:"slow", my:"နှေးတယ်", zh:"慢", th:"ช้า"},
+  {en:"one", my:"တစ်", zh:"一", th:"หนึ่ง"},
+  {en:"two", my:"နှစ်", zh:"二", th:"สอง"},
+  {en:"three", my:"သုံး", zh:"三", th:"สาม"},
+  {en:"many", my:"များများ", zh:"很多", th:"เยอะ"},
+  {en:"here", my:"ဒီမှာ", zh:"这里", th:"ที่นี่"},
+  {en:"there", my:"အဲ့မှာ", zh:"那里", th:"ที่นั่น"},
+  {en:"what", my:"ဘာ", zh:"什么", th:"อะไร"},
+  {en:"who", my:"ဘယ်သူ", zh:"谁", th:"ใคร"},
+  {en:"why", my:"ဘာကြောင့်", zh:"为什么", th:"ทำไม"},
+  {en:"how", my:"ဘယ်လို", zh:"怎么", th:"อย่างไร"},
+];
+
+/**
+ * Advanced offline translator.
+ * 1) Exact phrase match  2) Substring phrase match
+ * 3) Compositional word-by-word greedy match (works without network,
+ *    even for sentences never seen before, as long as the vocabulary
+ *    inside it is known).
+ * Returns {text, approx} or null if nothing could be matched at all.
+ */
+function offlineTranslate(rawText, srcCode, tgtCode){
+  const norm = rawText.trim();
+  if(!norm) return null;
+  const normLower = norm.toLowerCase();
+
+  // 1) Exact phrase match
+  for(const p of PHRASES){
+    const src = (p[srcCode] || '').trim();
+    if(src && (src === norm || src.toLowerCase() === normLower)){
+      return {text: p[tgtCode], approx:false};
+    }
+  }
+
+  // 2) Substring phrase match (longest phrases first)
+  const sortedPhrases = [...PHRASES].sort((a,b)=> (b[srcCode]||'').length - (a[srcCode]||'').length);
+  for(const p of sortedPhrases){
+    const src = (p[srcCode] || '').trim();
+    if(src.length >= 3){
+      const srcLower = src.toLowerCase();
+      if(normLower.includes(srcLower) || srcLower.includes(normLower)){
+        return {text: p[tgtCode], approx:false};
+      }
+    }
+  }
+
+  // 3) Compositional greedy word-by-word matching
+  const dict = [...PHRASES, ...WORDS]
+    .filter(d => d[srcCode] && d[tgtCode])
+    .sort((a,b)=> (b[srcCode]||'').length - (a[srcCode]||'').length);
+
+  let i = 0;
+  const lowerNorm = normLower;
+  const outParts = [];
+  let matchedAny = false;
+
+  while(i < norm.length){
+    let matched = null;
+    for(const d of dict){
+      const src = d[srcCode].trim();
+      if(!src) continue;
+      if(lowerNorm.startsWith(src.toLowerCase(), i)){
+        matched = d;
+        break;
+      }
+    }
+    if(matched){
+      outParts.push(matched[tgtCode]);
+      i += matched[srcCode].trim().length;
+      matchedAny = true;
+      while(i < norm.length && /\s/.test(norm[i])) i++;
+    } else {
+      i++;
+    }
+  }
+
+  if(matchedAny && outParts.length){
+    const wordCount = norm.split(/\s+/).filter(Boolean).length;
+    // For anything longer than a couple of words, a sparse word-by-word
+    // dictionary match is more likely to be confusing/wrong than helpful —
+    // better to admit it couldn't translate than show a garbled fragment.
+    if(wordCount > 4 && outParts.length < Math.ceil(wordCount / 2)){
+      return null;
+    }
+    return {text: outParts.join(' '), approx:true};
+  }
+  return null;
+}
+
+/* =========================================================
+   STATE
+========================================================= */
+const state = {
+  langA: langByCode('en'),
+  langB: langByCode('my'),
+  messages: [], // newest first
+  apiKey: '',
+  offlineForced: false,
+  listening: {A:false, B:false},
+  translating: {A:false, B:false},
+  autoConversation: false,
+};
+
+function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
+
+/* =========================================================
+   SPEECH: STT + TTS (Web Speech API)
+========================================================= */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+if (SpeechRec) {
+  recognition = new SpeechRec();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+}
+
+let cachedVoices = [];
+function loadVoices(){
+  if('speechSynthesis' in window){
+    cachedVoices = window.speechSynthesis.getVoices();
+  }
+}
+if('speechSynthesis' in window){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function pickVoice(localeCode){
+  if(!cachedVoices.length) loadVoices();
+  let v = cachedVoices.find(v => v.lang === localeCode);
+  if(!v) v = cachedVoices.find(v => v.lang.toLowerCase() === localeCode.toLowerCase());
+  if(!v) v = cachedVoices.find(v => v.lang.split('-')[0] === localeCode.split('-')[0]);
+  return v || null;
+}
+
+function startStt(side){
+  if(!recognition){
+    alert('ဒီ browser မှာ voice recognition ကို support မလုပ်ပါ။ Chrome browser သုံးကြည့်ပါ။');
+    return;
+  }
+  // Interrupt any playback so listening starts immediately (feels faster)
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+  const lang = side === 'A' ? state.langA : state.langB;
+  recognition.lang = lang.ttsLocale;
+  state.listening[side] = true;
+  renderPanel(side);
+  renderStatusBar();
+
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    if(text && text.trim()) handleTranslation(text, side, true);
+  };
+  recognition.onerror = (e) => {
+    stopStt();
+    if(e.error === 'not-allowed' || e.error === 'permission-denied'){
+      state.autoConversation = false; // can't run hands-free without mic access
+      renderStatusBar();
+      alert('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။ Browser setting ထဲမှာ mic ခွင့်ပြုပေးပါ။');
+    }
+    // Other errors (e.g. 'no-speech') fail silently so Auto Chat doesn't spam alerts.
+  };
+  // Auto-stop as soon as the browser detects the person paused speaking —
+  // no need to hold the button, this makes back-and-forth chat much faster.
+  recognition.onspeechend = () => { try{ recognition.stop(); }catch(e){} };
+  recognition.onend = () => { stopStt(); };
+
+  try{ recognition.start(); } catch(e){ stopStt(); }
+}
+function stopStt(){
+  state.listening.A = false;
+  state.listening.B = false;
+  renderPanel('A'); renderPanel('B');
+  renderStatusBar();
+}
+function stopSttManual(){
+  if(recognition){ try{ recognition.stop(); }catch(e){} }
+  stopStt();
+}
+
+function speak(text, lang, onDone){
+  if(!('speechSynthesis' in window) || !text){ if(onDone) onDone(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voice = pickVoice(lang.ttsLocale);
+  if(voice){ u.voice = voice; u.lang = voice.lang; }
+  else { u.lang = lang.ttsLocale; }
+  u.rate = 0.95;
+  let fired = false;
+  const finish = () => { if(fired) return; fired = true; if(onDone) onDone(); };
+  u.onend = finish;
+  u.onerror = finish;
+  window.speechSynthesis.speak(u);
+}
+
+/* =========================================================
+   TRANSLATION (Gemini API, natural/context-aware, with
+   advanced offline fallback)
+========================================================= */
+async function handleTranslation(rawText, sender, isVoice){
+  rawText = (rawText || '').trim();
+  if(!rawText) return;
+
+  const isA = sender === 'A';
+  state.translating[sender] = true;
+
+  // Clear the input immediately so the person can keep typing/talking
+  // without waiting on the network — this is what makes chat feel fast.
+  if(isA){ document.getElementById('inputA').value = ''; }
+  else { document.getElementById('inputB').value = ''; }
+
+  const sourceLang = isA ? state.langA : state.langB;
+  const targetLang = isA ? state.langB : state.langA;
+
+  // Optimistic bubble: show the original message right away, translation
+  // fills in a moment later instead of the whole UI feeling frozen.
+  const msgId = Date.now().toString();
+  state.messages.unshift({
+    id: msgId,
+    sender,
+    originalText: rawText,
+    translatedText: '',
+    isVoice: !!isVoice,
+    approx: false,
+    usedOffline: false,
+    pending: true,
+  });
+  renderPanel('A'); renderPanel('B');
+
+  let translated = '';
+  let approx = false;
+  let usedOffline = false;
+  let errorDetail = '';
+
+  async function fallbackOffline(prefix){
+    const off = offlineTranslate(rawText, sourceLang.code, targetLang.code);
+    usedOffline = true;
+    if(off){ translated = off.text; approx = off.approx; }
+    else { translated = `${prefix} ${rawText}`; approx = true; }
+  }
+
+  if(state.offlineForced || !state.apiKey){
+    await fallbackOffline('[Offline]');
+  } else {
+    try{
+      const prompt = `You are an expert interpreter helping two people communicate naturally in a live, real-time conversation. `
+        + `Translate the following message from ${sourceLang.name} into ${targetLang.name}.\n\n`
+        + `IMPORTANT: Do NOT translate word-for-word. Understand the full meaning, tone, and intent of the message, `
+        + `then express it the way a native ${targetLang.name} speaker would naturally say it out loud in this real-life situation `
+        + `(everyday / workplace conversation). Keep the same tone (casual, polite, urgent, friendly, etc.) as the original.\n\n`
+        + `Rules:\n`
+        + `- If translating into Burmese, use natural, everyday spoken Burmese (not overly formal/literary).\n`
+        + `- If translating into Chinese, use the polite/respectful form (您) unless the tone is clearly casual.\n`
+        + `- If translating into Thai, include natural polite particles (ครับ/ค่ะ) where appropriate.\n`
+        + `- If translating into English, use natural, conversational English.\n\n`
+        + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
+        + `Message: "${rawText}"`;
+
+      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': state.apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingLevel: 'low' }
+          }
+        })
+      });
+
+      if(resp.ok){
+        const data = await resp.json();
+        const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim();
+        const finishReason = data?.candidates?.[0]?.finishReason;
+        if(text){ translated = text; }
+        else {
+          errorDetail = `Empty response (finishReason: ${finishReason || 'unknown'})`;
+          console.error('Gemini empty response:', JSON.stringify(data));
+          await fallbackOffline('[Empty response]');
+        }
+      } else {
+        let bodyText = '';
+        try{ bodyText = await resp.text(); }catch(e2){}
+        errorDetail = `API Error ${resp.status}: ${bodyText.slice(0, 200)}`;
+        console.error('Gemini API error:', resp.status, bodyText);
+        await fallbackOffline('[Network Error]');
+      }
+    } catch(e){
+      errorDetail = `Connection error: ${e.message}`;
+      console.error('Gemini fetch failed:', e);
+      await fallbackOffline('[Error Connection]');
+    }
+  }
+
+  const msg = state.messages.find(m => m.id === msgId);
+  if(msg){
+    msg.translatedText = translated;
+    msg.approx = approx;
+    msg.usedOffline = usedOffline;
+    msg.errorDetail = errorDetail;
+    msg.pending = false;
+  }
+
+  state.translating[sender] = false;
+  renderPanel('A'); renderPanel('B');
+
+  speak(translated, targetLang, () => {
+    // Auto Chat: once the translation has been spoken to the other person,
+    // automatically open their mic so they can reply hands-free — like a
+    // real walkie-talkie back-and-forth, no extra taps needed.
+    if(state.autoConversation){
+      const replySide = otherSide(sender);
+      if(!state.listening.A && !state.listening.B && !state.translating.A && !state.translating.B){
+        setTimeout(() => { if(state.autoConversation) startStt(replySide); }, 350);
+      }
+    }
+  });
+}
+
+/* =========================================================
+   SCAN & TRANSLATE (camera photo -> Gemini vision OCR + natural translation)
+========================================================= */
+let currentScanSide = null;
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function scanAndTranslate(file, side){
+  const isA = side === 'A';
+  const sourceLang = isA ? state.langA : state.langB;
+  const targetLang = isA ? state.langB : state.langA;
+
+  if(state.offlineForced || !state.apiKey){
+    alert('Scan feature က Gemini API Key လိုအပ်ပါတယ် (offline dictionary က ဓာတ်ပုံထဲက စာကို မဖတ်နိုင်သေးပါ)။ Settings ထဲမှာ API Key ထည့်ပေးပါ။');
+    return;
+  }
+
+  state.translating[side] = true;
+  const scanMsgId = Date.now().toString();
+  state.messages.unshift({
+    id: scanMsgId,
+    sender: side,
+    originalText: '(scanning photo…)',
+    translatedText: '',
+    isVoice: false,
+    isScan: true,
+    approx: false,
+    usedOffline: false,
+    pending: true,
+  });
+  renderPanel('A'); renderPanel('B');
+
+  try{
+    const base64 = await fileToBase64(file);
+    const prompt = `This photo contains visible text (a sign, label, document, screen, or handwriting), likely in ${sourceLang.name} but it could be in any language. `
+      + `Step 1: Read every piece of text visible in the image exactly as written. `
+      + `Step 2: Translate it into natural, fluent, native-sounding ${targetLang.name} — translate the full meaning and intent the way a native speaker would actually say it, NOT word-for-word. `
+      + `Respond in EXACTLY this format with no extra commentary:\n`
+      + `ORIGINAL: <the text you read from the image>\n`
+      + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
+
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': state.apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingLevel: 'low' }
+        }
+      })
+    });
+
+    if(!resp.ok){
+      let bodyText = '';
+      try{ bodyText = await resp.text(); }catch(e2){}
+      console.error('Gemini scan API error:', resp.status, bodyText);
+      alert(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})\n${bodyText.slice(0,200)}`);
+      state.messages = state.messages.filter(m => m.id !== scanMsgId);
+      state.translating[side] = false;
+      renderPanel('A'); renderPanel('B');
+      return;
+    }
+
+    const data = await resp.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+    const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATED:/i);
+    const transMatch = raw.match(/TRANSLATED:\s*([\s\S]*)/i);
+    const originalText = origMatch ? origMatch[1].trim() : '(scanned image)';
+    const translatedText = transMatch ? transMatch[1].trim() : raw;
+
+    const scanMsg = state.messages.find(m => m.id === scanMsgId);
+    if(scanMsg){
+      scanMsg.originalText = originalText;
+      scanMsg.translatedText = translatedText;
+      scanMsg.pending = false;
+    }
+
+    state.translating[side] = false;
+    renderPanel('A'); renderPanel('B');
+
+    speak(translatedText, targetLang, () => {
+      if(state.autoConversation){
+        const replySide = otherSide(side);
+        if(!state.listening.A && !state.listening.B && !state.translating.A && !state.translating.B){
+          setTimeout(() => { if(state.autoConversation) startStt(replySide); }, 350);
+        }
+      }
+    });
+    return;
+  } catch(e){
+    console.error('Gemini scan fetch failed:', e);
+    alert(`Scan translation အမှားတစ်ခုဖြစ်သွားပါတယ်: ${e.message}`);
+    state.messages = state.messages.filter(m => m.id !== scanMsgId);
+  }
+
+  state.translating[side] = false;
+  renderPanel('A'); renderPanel('B');
+}
+
+document.getElementById('scanInput').addEventListener('change', (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(file && currentScanSide){
+    scanAndTranslate(file, currentScanSide);
+  }
+  e.target.value = '';
+});
+
+/* =========================================================
+   RENDERING
+========================================================= */
+function svgMic(){return `<svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg>`;}
+function svgSend(){return `<svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>`;}
+function svgVolume(){return `<svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 7.97v8.05A4.48 4.48 0 0 0 16.5 12z"/></svg>`;}
+function svgTranslate(){return `<svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.05 4.98L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>`;}
+function svgCamera(){return `<svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2l-1.83 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>`;}
+
+function renderPanel(side){
+  const isA = side === 'A';
+  const container = document.getElementById('panel' + side);
+  const currentLang = isA ? state.langA : state.langB;
+  const otherLang = isA ? state.langB : state.langA;
+  const accent = isA ? 'var(--cyan)' : 'var(--red)';
+  const isListening = state.listening[side];
+  const isTranslating = state.translating[side];
+
+  container.innerHTML = `
+    <div class="panel-header">
+      <div class="who">
+        <div class="dot" style="background:${accent}"></div>
+        <div class="label">${isA ? 'Colleague Perspective' : 'My Perspective'}</div>
+      </div>
+      <select class="langSelect" id="select${side}">
+        ${LANGUAGES.map(l => `<option value="${l.code}" ${l.code===currentLang.code?'selected':''} ${l.code===otherLang.code?'disabled':''}>${l.flag} ${l.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="chatLog" id="chatLog${side}"></div>
+    <div class="inputRow">
+      <div class="textFieldWrap">
+        <input type="text" id="input${side}" placeholder="Type message to translate...">
+        <button class="sendBtn" id="sendBtn${side}">${svgSend()}</button>
+      </div>
+      <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo">${svgCamera()}</button>
+      <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="Tap to talk, auto-stops when you pause">
+        ${isTranslating ? '<div class="spinner"></div>' : svgMic()}
+      </button>
+    </div>
+  `;
+
+  renderChatLog(side);
+
+  document.getElementById('select'+side).addEventListener('change', (e)=>{
+    const newLang = langByCode(e.target.value);
+    if(isA) state.langA = newLang; else state.langB = newLang;
+    renderPanel('A'); renderPanel('B');
+  });
+  document.getElementById('sendBtn'+side).addEventListener('click', ()=>{
+    const input = document.getElementById('input'+side);
+    handleTranslation(input.value, side, false);
+  });
+  document.getElementById('input'+side).addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') handleTranslation(e.target.value, side, false);
+  });
+
+  const micBtn = document.getElementById('mic'+side);
+  micBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(isTranslating) return;
+    if(state.listening[side]){ stopSttManual(); }
+    else { startStt(side); }
+  });
+
+  const camBtn = document.getElementById('cam'+side);
+  camBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(isTranslating) return;
+    currentScanSide = side;
+    document.getElementById('scanInput').click();
+  });
+}
+
+function renderChatLog(side){
+  const el = document.getElementById('chatLog'+side);
+  if(state.messages.length === 0){
+    el.innerHTML = `<div class="emptyState">${svgTranslate()}<br>No communications logged.<br>Tap &amp; hold Mic or type to speak.</div>`;
+    return;
+  }
+  el.innerHTML = state.messages.map(msg => {
+    const isMine = msg.sender === side;
+    const originalLabel = isMine ? 'Original' : 'Received (Translated)';
+    const translationLabel = isMine ? 'Translated Out' : 'Original Source';
+    const accent = msg.sender === 'A' ? 'var(--cyan)' : 'var(--red)';
+    const mainRaw = isMine ? msg.originalText : msg.translatedText;
+    const subRaw = isMine ? msg.translatedText : msg.originalText;
+    const showMainPending = msg.pending && !isMine; // their translation not ready yet
+    const showSubPending = msg.pending && isMine;   // your outgoing translation not ready yet
+
+    return `
+      <div class="bubbleRow ${isMine?'mine':'theirs'}">
+        <div class="bubble">
+          <div class="topRow">
+            <span class="tag" style="color:${accent}">${isMine ? originalLabel : translationLabel}</span>
+            <div class="badges">
+              ${msg.isVoice ? `<svg class="voiceIcon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/></svg>` : ''}
+              ${msg.isScan ? `<span class="scanBadge">📷 scan</span>` : ''}
+              ${msg.usedOffline ? `<span class="offlineBadge">offline</span>` : ''}
+              ${msg.approx ? `<span class="approxBadge">≈ approx</span>` : ''}
+            </div>
+          </div>
+          <div class="mainText">${showMainPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(mainRaw)}</div>
+          <hr>
+          <div class="subRow">
+            <span class="subLabel">${isMine ? translationLabel : originalLabel}</span>
+          </div>
+          <div class="subText">${showSubPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(subRaw)}</div>
+          ${msg.errorDetail ? `<div class="errorDetail">⚠ ${escapeHtml(msg.errorDetail)}</div>` : ''}
+          <div class="bottomRow">
+            <button class="replayBtn" ${msg.pending ? 'disabled style="opacity:.35"' : ''} onclick='replayAudio(${JSON.stringify(msg.translatedText)}, "${side}")'>${svgVolume()}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function replayAudio(text, side){
+  const lang = side === 'A' ? state.langA : state.langB;
+  speak(text, lang);
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.innerText = str;
+  return d.innerHTML;
+}
+
+function renderStatusBar(){
+  const bar = document.getElementById('statusBar');
+  const text = document.getElementById('statusText');
+  const online = !state.offlineForced && !!state.apiKey;
+  bar.classList.toggle('online', online);
+  text.textContent = online
+    ? 'Live Translation Active'
+    : 'Offline Mode (Limited)';
+
+  const autoBtn = document.getElementById('autoBtn');
+  const isActive = state.autoConversation || state.listening.A || state.listening.B;
+  autoBtn.classList.toggle('on', state.autoConversation);
+  autoBtn.classList.toggle('pulsing', state.autoConversation && isActive);
+}
+
+document.getElementById('autoBtn').addEventListener('click', ()=>{
+  state.autoConversation = !state.autoConversation;
+  if(!state.autoConversation){
+    // Turning it off should immediately stop any in-progress listening.
+    if(recognition){ try{ recognition.stop(); }catch(e){} }
+    stopStt();
+  }
+  renderStatusBar();
+});
+
+/* =========================================================
+   SETTINGS MODAL
+========================================================= */
+const overlay = document.getElementById('modalOverlay');
+document.getElementById('settingsBtn').addEventListener('click', ()=>{
+  document.getElementById('apiKeyInput').value = state.apiKey;
+  document.getElementById('offlineToggle').checked = state.offlineForced;
+  overlay.classList.add('show');
+});
+document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.classList.remove('show'));
+document.getElementById('applyBtn').addEventListener('click', ()=>{
+  state.apiKey = document.getElementById('apiKeyInput').value.trim();
+  state.offlineForced = document.getElementById('offlineToggle').checked;
+  overlay.classList.remove('show');
+  renderStatusBar();
+});
+overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
+
+/* =========================================================
+   INIT
+========================================================= */
+renderStatusBar();
+renderPanel('A');
+renderPanel('B');
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
