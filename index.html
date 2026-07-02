@@ -1125,7 +1125,20 @@ renderPanel('B');
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+    navigator.serviceWorker.register('service-worker.js').then((reg) => {
+      // Check for a newer service-worker.js every time the app opens.
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  });
+
+  // When a new service worker takes over (i.e. an update was found and
+  // installed), reload once automatically so the fresh version is shown
+  // without the person needing to manually clear cache.
+  let refreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(refreshed) return;
+    refreshed = true;
+    window.location.reload();
   });
 }
 </script>
