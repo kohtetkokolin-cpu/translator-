@@ -1,4 +1,4 @@
-const CACHE_NAME = 'walkie-translator-v1';
+const CACHE_NAME = 'walkie-translator-v2';
 const CORE_ASSETS = [
   './index.html',
   './manifest.json',
@@ -23,9 +23,31 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle our own app shell; let Gemini API calls always go to the network.
+  // Never intercept the Gemini API — always go straight to the network.
   if (event.request.url.includes('generativelanguage.googleapis.com')) return;
 
+  const isAppShell =
+    event.request.mode === 'navigate' ||
+    event.request.url.endsWith('index.html') ||
+    event.request.url.endsWith('/');
+
+  if (isAppShell) {
+    // Network-first for the app itself: always try to fetch the latest
+    // version first, so updates you upload to GitHub show up right away.
+    // Only fall back to the cached copy if there's no internet.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (icons, manifest) since they rarely change.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
