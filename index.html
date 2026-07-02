@@ -303,6 +303,13 @@
   .switch input:checked + .slider:before{transform:translateX(18px);}
   hr.divide{border:none;border-top:1px solid rgba(255,255,255,0.15);margin:18px 0;}
   #modalCard .mapNote{color:#888;font-size:11px;line-height:1.6;white-space:pre-line;}
+  .speedRow{display:flex;gap:8px;margin-top:8px;}
+  .speedBtn{
+    flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--border2);
+    background:var(--surface);color:#aaa;font-size:12px;font-weight:700;cursor:pointer;
+    touch-action:manipulation;
+  }
+  .speedBtn.active{background:var(--cyan);border-color:var(--cyan);color:#000;}
   .modalActions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
   .btnGhost, .btnPrimary{
     padding:10px 18px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
@@ -360,6 +367,13 @@
         <input type="checkbox" id="offlineToggle">
         <span class="slider"></span>
       </label>
+    </div>
+    <hr class="divide">
+    <div class="fieldLabel">Voice Speed (ဘာသာပြန် အသံ မြန်နှုန်း)</div>
+    <div class="speedRow" id="speedRow">
+      <button type="button" class="speedBtn" data-rate="0.6">🐢 Slow</button>
+      <button type="button" class="speedBtn" data-rate="0.85">🚶 Normal</button>
+      <button type="button" class="speedBtn" data-rate="1.1">🏃 Fast</button>
     </div>
     <hr class="divide">
     <div class="fieldLabel">Offline Translation Engine</div>
@@ -558,6 +572,7 @@ const state = {
   listening: {A:false, B:false},
   translating: {A:false, B:false},
   autoConversation: false,
+  speechRate: 0.85,
 };
 
 function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
@@ -644,7 +659,7 @@ function speak(text, lang, onDone){
   const voice = pickVoice(lang.ttsLocale);
   if(voice){ u.voice = voice; u.lang = voice.lang; }
   else { u.lang = lang.ttsLocale; }
-  u.rate = 0.95;
+  u.rate = state.speechRate;
   let fired = false;
   const finish = () => { if(fired) return; fired = true; if(onDone) onDone(); };
   u.onend = finish;
@@ -1064,12 +1079,29 @@ const overlay = document.getElementById('modalOverlay');
 document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('apiKeyInput').value = state.apiKey;
   document.getElementById('offlineToggle').checked = state.offlineForced;
+  document.querySelectorAll('.speedBtn').forEach(btn => {
+    btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.speechRate);
+  });
   overlay.classList.add('show');
+});
+document.querySelectorAll('.speedBtn').forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.speedBtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    btn.dataset.selected = '1';
+  });
 });
 document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.classList.remove('show'));
 document.getElementById('applyBtn').addEventListener('click', ()=>{
   state.apiKey = document.getElementById('apiKeyInput').value.trim();
   state.offlineForced = document.getElementById('offlineToggle').checked;
+  const activeSpeedBtn = document.querySelector('.speedBtn.active');
+  if(activeSpeedBtn) state.speechRate = parseFloat(activeSpeedBtn.dataset.rate);
+  try{
+    localStorage.setItem('wt_apiKey', state.apiKey);
+    localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
+    localStorage.setItem('wt_speechRate', String(state.speechRate));
+  }catch(e){ /* storage unavailable — key just won't persist */ }
   overlay.classList.remove('show');
   renderStatusBar();
 });
@@ -1078,6 +1110,15 @@ overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classL
 /* =========================================================
    INIT
 ========================================================= */
+try{
+  const savedKey = localStorage.getItem('wt_apiKey');
+  const savedOffline = localStorage.getItem('wt_offlineForced');
+  const savedRate = localStorage.getItem('wt_speechRate');
+  if(savedKey) state.apiKey = savedKey;
+  if(savedOffline !== null) state.offlineForced = savedOffline === '1';
+  if(savedRate) state.speechRate = parseFloat(savedRate);
+}catch(e){ /* storage unavailable — falls back to blank each launch */ }
+
 renderStatusBar();
 renderPanel('A');
 renderPanel('B');
