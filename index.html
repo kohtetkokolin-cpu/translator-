@@ -376,6 +376,26 @@
         <span class="slider"></span>
       </label>
     </div>
+    <div class="toggleRow">
+      <div>
+        <div style="font-size:13px;font-weight:700;">Auto-Speak Translation</div>
+        <div class="desc">Translate ပြီးတာနဲ့ အသံ တန်းထွက်။ ပိတ်ထားရင် ▶ နှိပ်မှ ပြောပါလိမ့်မယ်</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoSpeakToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggleRow">
+      <div>
+        <div style="font-size:13px;font-weight:700;">Show "Translated Out" Preview</div>
+        <div class="desc">ကိုယ်ပို့လိုက်တဲ့ စာရဲ့ ဘာသာပြန်ကို bubble အောက်မှာ ပြမပြ ရွေးပါ</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="showTranslatedOutToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
     <hr class="divide">
     <div class="fieldLabel">Voice Speed (ဘာသာပြန် အသံ မြန်နှုန်း)</div>
     <div class="speedRow" id="speedRow">
@@ -581,6 +601,8 @@ const state = {
   translating: {A:false, B:false},
   autoConversation: false,
   speechRate: 0.85,
+  autoSpeak: true,
+  showTranslatedOut: true,
 };
 
 function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
@@ -662,6 +684,31 @@ function stopSttManual(){
 
 const ttsAudioCache = new Map(); // text -> object URL, avoids re-generating audio on repeat plays
 let currentAudioEl = null;
+
+// Mobile browsers block audio.play() unless it's tied to a recent user
+// gesture. Auto-speak happens after a network round-trip (translation),
+// so by the time we call play() the gesture has "expired" and it silently
+// fails — meaning it only ever worked when someone tapped ▶ directly.
+// Fix: the moment the person interacts with the page at all (tapping mic,
+// send, camera, anything), we silently play a near-silent audio clip once.
+// That grants this page "sticky" audio playback permission for the rest
+// of the session, so later automatic TTS playback goes through normally.
+let audioUnlocked = false;
+function unlockAudioPlayback(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  try{
+    const silence = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+    silence.volume = 0.01;
+    silence.play().catch(()=>{ audioUnlocked = false; });
+  }catch(e){ audioUnlocked = false; }
+  if(window.speechSynthesis){
+    try{ window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); }catch(e){}
+  }
+}
+['pointerdown','touchstart','click'].forEach(evt => {
+  document.addEventListener(evt, unlockAudioPlayback, { once: true, passive: true });
+});
 
 function pcmBase64ToWavBlob(base64, sampleRate){
   const binary = atob(base64);
@@ -878,7 +925,7 @@ async function handleTranslation(rawText, sender, isVoice){
   state.translating[sender] = false;
   renderPanel('A'); renderPanel('B');
 
-  speak(translated, targetLang, () => {
+  const continueAutoConversation = () => {
     // Auto Chat: once the translation has been spoken to the other person,
     // automatically open their mic so they can reply hands-free — like a
     // real walkie-talkie back-and-forth, no extra taps needed.
@@ -888,7 +935,13 @@ async function handleTranslation(rawText, sender, isVoice){
         setTimeout(() => { if(state.autoConversation) startStt(replySide); }, 350);
       }
     }
-  });
+  };
+
+  if(state.autoSpeak){
+    speak(translated, targetLang, continueAutoConversation);
+  } else {
+    continueAutoConversation();
+  }
 }
 
 /* =========================================================
@@ -988,14 +1041,20 @@ async function scanAndTranslate(file, side){
     state.translating[side] = false;
     renderPanel('A'); renderPanel('B');
 
-    speak(translatedText, targetLang, () => {
+    const continueAutoConversation = () => {
       if(state.autoConversation){
         const replySide = otherSide(side);
         if(!state.listening.A && !state.listening.B && !state.translating.A && !state.translating.B){
           setTimeout(() => { if(state.autoConversation) startStt(replySide); }, 350);
         }
       }
-    });
+    };
+
+    if(state.autoSpeak){
+      speak(translatedText, targetLang, continueAutoConversation);
+    } else {
+      continueAutoConversation();
+    }
     return;
   } catch(e){
     console.error('Gemini scan fetch failed:', e);
@@ -1110,6 +1169,10 @@ function renderChatLog(side){
     // the bottom block is always shown in the other side's language.
     const mainSide = side;
     const subSide = otherSide(side);
+    // "Translated Out" (the sub-block on your own outgoing messages) can be
+    // hidden via settings to reduce clutter; received messages always show
+    // their Original Source for reference.
+    const hideSub = isMine && !state.showTranslatedOut;
 
     return `
       <div class="bubbleRow ${isMine?'mine':'theirs'}">
@@ -1129,6 +1192,7 @@ function renderChatLog(side){
             <button class="iconBtn" title="Play" onclick='playBlock(${JSON.stringify(mainRaw)}, "${mainSide}")'>${svgPlay()}</button>
             <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(mainRaw)}, this)'>${svgCopy()}</button>
           </div>`}
+          ${hideSub ? '' : `
           <hr>
           <div class="subRow">
             <span class="subLabel">${isMine ? translationLabel : originalLabel}</span>
@@ -1138,7 +1202,7 @@ function renderChatLog(side){
           <div class="miniControls">
             <button class="iconBtn" title="Play" onclick='playBlock(${JSON.stringify(subRaw)}, "${subSide}")'>${svgPlay()}</button>
             <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(subRaw)}, this)'>${svgCopy()}</button>
-          </div>`}
+          </div>`}`}
           ${msg.errorDetail ? `<div class="errorDetail">⚠ ${escapeHtml(msg.errorDetail)}</div>` : ''}
         </div>
       </div>
@@ -1210,6 +1274,8 @@ const overlay = document.getElementById('modalOverlay');
 document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('apiKeyInput').value = state.apiKey;
   document.getElementById('offlineToggle').checked = state.offlineForced;
+  document.getElementById('autoSpeakToggle').checked = state.autoSpeak;
+  document.getElementById('showTranslatedOutToggle').checked = state.showTranslatedOut;
   document.querySelectorAll('.speedBtn').forEach(btn => {
     btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.speechRate);
   });
@@ -1226,15 +1292,20 @@ document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.clas
 document.getElementById('applyBtn').addEventListener('click', ()=>{
   state.apiKey = document.getElementById('apiKeyInput').value.trim();
   state.offlineForced = document.getElementById('offlineToggle').checked;
+  state.autoSpeak = document.getElementById('autoSpeakToggle').checked;
+  state.showTranslatedOut = document.getElementById('showTranslatedOutToggle').checked;
   const activeSpeedBtn = document.querySelector('.speedBtn.active');
   if(activeSpeedBtn) state.speechRate = parseFloat(activeSpeedBtn.dataset.rate);
   try{
     localStorage.setItem('wt_apiKey', state.apiKey);
     localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
     localStorage.setItem('wt_speechRate', String(state.speechRate));
+    localStorage.setItem('wt_autoSpeak', state.autoSpeak ? '1' : '0');
+    localStorage.setItem('wt_showTranslatedOut', state.showTranslatedOut ? '1' : '0');
   }catch(e){ /* storage unavailable — key just won't persist */ }
   overlay.classList.remove('show');
   renderStatusBar();
+  renderPanel('A'); renderPanel('B');
 });
 overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
 
@@ -1245,9 +1316,13 @@ try{
   const savedKey = localStorage.getItem('wt_apiKey');
   const savedOffline = localStorage.getItem('wt_offlineForced');
   const savedRate = localStorage.getItem('wt_speechRate');
+  const savedAutoSpeak = localStorage.getItem('wt_autoSpeak');
+  const savedShowSub = localStorage.getItem('wt_showTranslatedOut');
   if(savedKey) state.apiKey = savedKey;
   if(savedOffline !== null) state.offlineForced = savedOffline === '1';
   if(savedRate) state.speechRate = parseFloat(savedRate);
+  if(savedAutoSpeak !== null) state.autoSpeak = savedAutoSpeak === '1';
+  if(savedShowSub !== null) state.showTranslatedOut = savedShowSub === '1';
 }catch(e){ /* storage unavailable — falls back to blank each launch */ }
 
 renderStatusBar();
