@@ -185,6 +185,7 @@
   .replayBtn svg{width:12px;height:12px;fill:rgba(255,255,255,0.7);}
   .voiceIcon{width:10px;height:10px;fill:rgba(255,255,255,0.5);}
   .approxBadge{color:var(--amber);font-size:8px;font-weight:700;border:1px solid var(--amber);border-radius:8px;padding:1px 5px;}
+  .memoryBadge{color:var(--cyan);font-size:8px;font-weight:700;border:1px solid var(--cyan);border-radius:8px;padding:1px 5px;}
   .dotFlicker{opacity:.5;animation:flicker 1s ease-in-out infinite;}
   @keyframes flicker{0%,100%{opacity:.35;}50%{opacity:.85;}}
   .errorDetail{
@@ -260,6 +261,8 @@
   .micBtn.listening.A{background:var(--cyan); box-shadow:0 0 16px 4px rgba(0,229,255,0.5);}
   .micBtn.listening.B{background:var(--red); box-shadow:0 0 16px 4px rgba(255,82,82,0.5);}
   .micBtn.listening svg{fill:#000;}
+  #qtMicBtn.listening{background:var(--cyan); box-shadow:0 0 16px 4px rgba(0,229,255,0.5);}
+  #qtMicBtn.listening svg{fill:#000;}
   .micBtn.busy{opacity:0.6;pointer-events:none;}
   .spinner{
     width:20px;height:20px;border:2px solid rgba(0,0,0,0.3);border-top-color:#000;
@@ -324,6 +327,56 @@
   }
   .btnGhost{background:transparent;color:#888;}
   .btnPrimary{background:var(--cyan);color:#000;}
+
+  /* ===== Mode tabs ===== */
+  #modeTabs{
+    display:flex;gap:8px;padding:8px 12px;background:#0C0D12;
+    border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .modeTab{
+    flex:1;padding:9px 6px;border-radius:10px;border:1px solid var(--border2);
+    background:var(--surface);color:#999;font-size:12px;font-weight:800;cursor:pointer;
+    touch-action:manipulation;
+  }
+  .modeTab.active{background:var(--cyan);border-color:var(--cyan);color:#000;}
+
+  /* ===== Quick Translate screen ===== */
+  #quickPanel{display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);}
+  .qtHeader{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .qtHeader label{font-size:11px;color:#888;font-weight:700;flex-shrink:0;}
+  .qtLangSelect{
+    flex:1;background:var(--surface);color:#fff;border:1px solid var(--border2);
+    border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;font-family:inherit;
+  }
+  #qtHistory{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  #qtHistory .qtEmpty{color:#666;font-size:12px;text-align:center;margin-top:40px;line-height:1.7;}
+  .qtCard{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:12px;margin-bottom:12px;box-shadow:0 3px 10px rgba(0,0,0,0.3);
+  }
+  .qtCard .qtDetected{font-size:9px;color:var(--amber);font-weight:700;margin-bottom:4px;}
+  .qtCard .qtOriginal{font-size:12px;color:#aaa;line-height:1.4;margin-bottom:8px;}
+  .qtCard hr{border:none;border-top:1px solid rgba(255,255,255,0.08);margin:8px 0;}
+  .qtCard .qtTranslation{font-size:14.5px;color:#fff;font-weight:700;line-height:1.4;}
+  .qtCard .qtBadges{display:flex;gap:6px;margin-bottom:4px;}
+  .qtInputDock{
+    display:flex;align-items:flex-end;gap:8px;padding:10px 12px;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    background:rgba(0,0,0,0.25);flex-shrink:0;
+  }
+  #qtInput{
+    flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:14px;
+    padding:10px 12px;color:#fff;font-size:16px;font-family:inherit;resize:none;
+    max-height:110px;min-height:42px;outline:none;
+  }
+  .qtMicLangRow{
+    display:flex;align-items:center;gap:8px;padding:0 12px 8px;flex-shrink:0;
+  }
+  .qtMicLangRow label{font-size:10px;color:#777;flex-shrink:0;}
+  .qtMicLangRow select{
+    flex:1;background:var(--surface);color:#ccc;border:1px solid var(--border);
+    border-radius:8px;padding:5px 8px;font-size:11px;font-family:inherit;
+  }
 </style>
 </head>
 <body>
@@ -345,6 +398,11 @@
   </div>
 </div>
 
+<div id="modeTabs">
+  <button class="modeTab active" data-mode="chat">💬 Conversation</button>
+  <button class="modeTab" data-mode="quick">🔍 Quick Translate</button>
+</div>
+
 <div id="panelA" class="panel"></div>
 <div id="divider">
   <div id="dividerBadge">
@@ -354,7 +412,32 @@
 </div>
 <div id="panelB" class="panel"></div>
 
+<div id="quickPanel">
+  <div class="qtHeader">
+    <label>Translate into</label>
+    <select id="qtTargetLang" class="qtLangSelect"></select>
+  </div>
+  <div id="qtHistory"><div class="qtEmpty">မသိတဲ့ စာသားကို ကူးထည့်ပါ၊ ဓာတ်ပုံရိုက်ပါ၊<br>သို့မဟုတ် အသံနဲ့ မေးပါ — AI က ရွေးထားတဲ့ဘာသာစကားသို့ တိကျစွာ ပြန်ပေးပါလိမ့်မယ်။</div></div>
+  <div class="qtMicLangRow">
+    <label>🎙️ အသံနဲ့ မေးမယ်ဆိုရင် ဘယ်ဘာသာစကားနဲ့ ပြောမလဲ:</label>
+    <select id="qtMicLang"></select>
+  </div>
+  <div class="qtInputDock">
+    <button id="qtCamBtn" class="camBtn">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+    </button>
+    <textarea id="qtInput" rows="1" placeholder="မသိတဲ့ စာသားကို ကူး/ရိုက်ထည့်ပါ..."></textarea>
+    <button id="qtMicBtn" class="micBtn">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V21h2v-2.07A7 7 0 0 0 19 12h-2z"/></svg>
+    </button>
+    <button id="qtSendBtn" class="sendBtn">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
 <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="qtScanInput" accept="image/*" capture="environment" style="display:none">
 
 <!-- Settings Modal -->
 <div id="modalOverlay">
@@ -466,6 +549,35 @@ const PHRASES = [
   {en:"Congratulations!", my:"ဂုဏ်ယူပါတယ်။", zh:"恭喜你！", th:"ยินดีด้วยครับ/ค่ะ"},
   {en:"Take care of yourself.", my:"ကိုယ်ကိုယ်ကိုသေချာထိန်းသိမ်းပါ။", zh:"请照顾好自己。", th:"ดูแลตัวเองด้วยนะครับ/ค่ะ"},
   {en:"Let's go.", my:"သွားကြရအောင်။", zh:"我们走吧。", th:"ไปกันเถอะครับ/ค่ะ"},
+  {en:"How are you?", my:"နေကောင်းလား။", zh:"你好吗？", th:"สบายดีไหมครับ/ค่ะ"},
+  {en:"I am fine.", my:"နေကောင်းပါတယ်။", zh:"我很好。", th:"สบายดีครับ/ค่ะ"},
+  {en:"I am tired.", my:"ငါပင်ပန်းနေတယ်။", zh:"我累了。", th:"ฉันเหนื่อยครับ/ค่ะ"},
+  {en:"What is your name?", my:"နာမည်ဘယ်လိုခေါ်လဲ။", zh:"你叫什么名字？", th:"คุณชื่ออะไรครับ/ค่ะ"},
+  {en:"Nice to meet you.", my:"တွေ့ရတာ ဝမ်းသာပါတယ်။", zh:"很高兴认识你。", th:"ยินดีที่ได้รู้จักครับ/ค่ะ"},
+  {en:"Where are you going?", my:"ဘယ်သွားမလို့လဲ။", zh:"你要去哪里？", th:"คุณจะไปไหนครับ/ค่ะ"},
+  {en:"What did you eat today?", my:"ဒီနေ့ ဘာစားခဲ့လဲ။", zh:"你今天吃了什么？", th:"วันนี้คุณกินอะไรครับ/ค่ะ"},
+  {en:"What should we eat today?", my:"ဒီနေ့ ဘာစားရင်ကောင်းမလဲ။", zh:"我们今天吃什么好呢？", th:"วันนี้กินอะไรดีครับ/ค่ะ"},
+  {en:"I have a headache.", my:"ငါခေါင်းကိုက်နေတယ်။", zh:"我头疼。", th:"ฉันปวดหัวครับ/ค่ะ"},
+  {en:"I feel sick.", my:"ငါနေမကောင်းဘူး။", zh:"我不舒服。", th:"ฉันรู้สึกไม่สบายครับ/ค่ะ"},
+  {en:"Please call a doctor.", my:"ဆရာဝန်ကိုခေါ်ပေးပါ။", zh:"请叫医生。", th:"กรุณาเรียกหมอครับ/ค่ะ"},
+  {en:"I don't have money.", my:"ငါ့မှာပိုက်ဆံမရှိဘူး။", zh:"我没有钱。", th:"ฉันไม่มีเงินครับ/ค่ะ"},
+  {en:"How many people?", my:"ဘယ်နှစ်ယောက်ရှိလဲ။", zh:"有几个人？", th:"มีกี่คนครับ/ค่ะ"},
+  {en:"What time should I come?", my:"ဘယ်အချိန်လာရမလဲ။", zh:"我应该几点来？", th:"ควรมาตอนกี่โมงครับ/ค่ะ"},
+  {en:"I will be late.", my:"ငါနောက်ကျမယ်။", zh:"我会迟到。", th:"ฉันจะไปสายครับ/ค่ะ"},
+  {en:"I am on the way to work.", my:"အလုပ်ကို သွားနေပါတယ်။", zh:"我正在去上班的路上。", th:"ฉันกำลังไปทำงานครับ/ค่ะ"},
+  {en:"Please explain how to do it.", my:"ဘယ်လိုလုပ်ရမလဲ ပြောပြပါဦး။", zh:"请解释一下怎么做。", th:"กรุณาอธิบายวิธีทำครับ/ค่ะ"},
+  {en:"I don't know what to say.", my:"ဘာပြောရမှန်းတောင်မသိဘူး။", zh:"我不知道该说什么。", th:"ฉันไม่รู้จะพูดอะไรครับ/ค่ะ"},
+  {en:"Turn left.", my:"ဘယ်ဘက်ကွေ့ပါ။", zh:"向左转。", th:"เลี้ยวซ้ายครับ/ค่ะ"},
+  {en:"Turn right.", my:"ညာဘက်ကွေ့ပါ။", zh:"向右转。", th:"เลี้ยวขวาครับ/ค่ะ"},
+  {en:"Go straight.", my:"တည့်တည့်သွားပါ။", zh:"直走。", th:"ตรงไปครับ/ค่ะ"},
+  {en:"Stop here.", my:"ဒီမှာရပ်ပါ။", zh:"停在这里。", th:"หยุดตรงนี้ครับ/ค่ะ"},
+  {en:"I like it.", my:"ငါကြိုက်တယ်။", zh:"我喜欢。", th:"ฉันชอบครับ/ค่ะ"},
+  {en:"I don't like it.", my:"ငါမကြိုက်ဘူး။", zh:"我不喜欢。", th:"ฉันไม่ชอบครับ/ค่ะ"},
+  {en:"Is this okay?", my:"ဒါဖြစ်လား။", zh:"这样可以吗？", th:"แบบนี้ได้ไหมครับ/ค่ะ"},
+  {en:"Everything is fine.", my:"အားလုံးအဆင်ပြေပါတယ်။", zh:"一切都好。", th:"ทุกอย่างเรียบร้อยดีครับ/ค่ะ"},
+  {en:"I need more time.", my:"ငါ့မှာအချိန်ပိုလိုအပ်တယ်။", zh:"我需要更多时间。", th:"ฉันต้องการเวลาเพิ่มครับ/ค่ะ"},
+  {en:"Let me think about it.", my:"စဉ်းစားကြည့်ရအောင်။", zh:"让我想一想。", th:"ขอคิดดูก่อนครับ/ค่ะ"},
+  {en:"I already finished it.", my:"ငါပြီးသွားပြီ။", zh:"我已经完成了。", th:"ฉันทำเสร็จแล้วครับ/ค่ะ"},
 ];
 
 const WORDS = [
@@ -510,6 +622,32 @@ const WORDS = [
   {en:"who", my:"ဘယ်သူ", zh:"谁", th:"ใคร"},
   {en:"why", my:"ဘာကြောင့်", zh:"为什么", th:"ทำไม"},
   {en:"how", my:"ဘယ်လို", zh:"怎么", th:"อย่างไร"},
+  {en:"please", my:"ကျေးဇူးပြု၍", zh:"请", th:"กรุณา"},
+  {en:"thanks", my:"ကျေးဇူးတင်ပါတယ်", zh:"谢谢", th:"ขอบคุณ"},
+  {en:"sorry", my:"တောင်းပန်ပါတယ်", zh:"对不起", th:"ขอโทษ"},
+  {en:"yes", my:"ဟုတ်ကဲ့", zh:"是", th:"ใช่"},
+  {en:"no", my:"မဟုတ်ဘူး", zh:"不", th:"ไม่"},
+  {en:"want", my:"လိုချင်တယ်", zh:"想要", th:"ต้องการ"},
+  {en:"need", my:"လိုအပ်တယ်", zh:"需要", th:"จำเป็น"},
+  {en:"tired", my:"ပင်ပန်းတယ်", zh:"累", th:"เหนื่อย"},
+  {en:"happy", my:"ပျော်တယ်", zh:"开心", th:"มีความสุข"},
+  {en:"sad", my:"ဝမ်းနည်းတယ်", zh:"难过", th:"เศร้า"},
+  {en:"angry", my:"စိတ်ဆိုးတယ်", zh:"生气", th:"โกรธ"},
+  {en:"sick", my:"နေမကောင်းဘူး", zh:"生病", th:"ป่วย"},
+  {en:"friend", my:"သူငယ်ချင်း", zh:"朋友", th:"เพื่อน"},
+  {en:"family", my:"မိသားစု", zh:"家人", th:"ครอบครัว"},
+  {en:"time", my:"အချိန်", zh:"时间", th:"เวลา"},
+  {en:"day", my:"နေ့", zh:"天", th:"วัน"},
+  {en:"morning", my:"မနက်", zh:"早上", th:"เช้า"},
+  {en:"evening", my:"ညနေ", zh:"晚上", th:"เย็น"},
+  {en:"night", my:"ညဘက်", zh:"夜晚", th:"กลางคืน"},
+  {en:"finish", my:"ပြီးတယ်", zh:"完成", th:"เสร็จ"},
+  {en:"start", my:"စတယ်", zh:"开始", th:"เริ่ม"},
+  {en:"wait", my:"စောင့်တယ်", zh:"等", th:"รอ"},
+  {en:"help", my:"ကူညီတယ်", zh:"帮助", th:"ช่วยเหลือ"},
+  {en:"problem", my:"ပြဿနာ", zh:"问题", th:"ปัญหา"},
+  {en:"correct", my:"မှန်တယ်", zh:"正确", th:"ถูกต้อง"},
+  {en:"wrong", my:"မှားတယ်", zh:"错误", th:"ผิด"},
 ];
 
 /**
@@ -520,6 +658,41 @@ const WORDS = [
  *    inside it is known).
  * Returns {text, approx} or null if nothing could be matched at all.
  */
+/**
+ * Translation Memory: every time the AI successfully translates something
+ * online, we remember the exact pair. Later, if the same (or near-identical)
+ * text comes up again while fully offline, we reuse that real translation
+ * instead of guessing word-by-word — this is what makes offline mode
+ * actually reliable for sentences you've used before, long or short.
+ */
+let translationMemory = {};
+try{
+  const raw = localStorage.getItem('wt_translationMemory');
+  if(raw) translationMemory = JSON.parse(raw);
+}catch(e){ translationMemory = {}; }
+
+function tmNormalize(text){
+  return text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[။၊.,!?]+$/g, '');
+}
+function tmKey(srcCode, tgtCode, text){
+  return srcCode + '|' + tgtCode + '|' + tmNormalize(text);
+}
+function tmLookup(srcCode, tgtCode, text){
+  return translationMemory[tmKey(srcCode, tgtCode, text)] || null;
+}
+function tmSave(srcCode, tgtCode, original, translated){
+  if(!original || !translated) return;
+  translationMemory[tmKey(srcCode, tgtCode, original)] = translated;
+  try{
+    const keys = Object.keys(translationMemory);
+    // Keep the memory from growing without bound on very long-lived installs.
+    if(keys.length > 600){
+      keys.slice(0, keys.length - 600).forEach(k => delete translationMemory[k]);
+    }
+    localStorage.setItem('wt_translationMemory', JSON.stringify(translationMemory));
+  }catch(e){ /* storage full or unavailable — memory still works for this session */ }
+}
+
 function offlineTranslate(rawText, srcCode, tgtCode){
   const norm = rawText.trim();
   if(!norm) return null;
@@ -850,8 +1023,14 @@ async function handleTranslation(rawText, sender, isVoice){
   let errorDetail = '';
 
   async function fallbackOffline(prefix){
-    const off = offlineTranslate(rawText, sourceLang.code, targetLang.code);
     usedOffline = true;
+    const remembered = tmLookup(sourceLang.code, targetLang.code, rawText);
+    if(remembered){
+      translated = remembered;
+      approx = false; // this is a real, previously-verified AI translation, not a guess
+      return;
+    }
+    const off = offlineTranslate(rawText, sourceLang.code, targetLang.code);
     if(off){ translated = off.text; approx = off.approx; }
     else { translated = `${prefix} ${rawText}`; approx = true; }
   }
@@ -893,7 +1072,10 @@ async function handleTranslation(rawText, sender, isVoice){
         const data = await resp.json();
         const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim();
         const finishReason = data?.candidates?.[0]?.finishReason;
-        if(text){ translated = text; }
+        if(text){
+          translated = text;
+          tmSave(sourceLang.code, targetLang.code, rawText, translated);
+        }
         else {
           errorDetail = `Empty response (finishReason: ${finishReason || 'unknown'})`;
           console.error('Gemini empty response:', JSON.stringify(data));
@@ -1182,7 +1364,7 @@ function renderChatLog(side){
             <div class="badges">
               ${msg.isVoice ? `<svg class="voiceIcon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/></svg>` : ''}
               ${msg.isScan ? `<span class="scanBadge">📷 scan</span>` : ''}
-              ${msg.usedOffline ? `<span class="offlineBadge">offline</span>` : ''}
+              ${msg.usedOffline ? (msg.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
               ${msg.approx ? `<span class="approxBadge">≈ approx</span>` : ''}
             </div>
           </div>
@@ -1308,6 +1490,291 @@ document.getElementById('applyBtn').addEventListener('click', ()=>{
   renderPanel('A'); renderPanel('B');
 });
 overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
+
+/* =========================================================
+   QUICK TRANSLATE (one-way: paste text / scan photo / voice,
+   translate whatever it is into a language YOU choose — not
+   part of the two-person Walkie-Talkie conversation)
+========================================================= */
+state.qtTargetCode = 'en';
+state.qtMicCode = 'my';
+state.qtHistory = [];
+
+function qtPopulateSelects(){
+  const targetSel = document.getElementById('qtTargetLang');
+  const micSel = document.getElementById('qtMicLang');
+  targetSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
+  micSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
+  targetSel.value = state.qtTargetCode;
+  micSel.value = state.qtMicCode;
+}
+
+document.querySelectorAll('.modeTab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.modeTab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.mode;
+    const isQuick = mode === 'quick';
+    document.getElementById('panelA').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('divider').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('panelB').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('quickPanel').style.display = isQuick ? 'flex' : 'none';
+  });
+});
+
+document.getElementById('qtTargetLang').addEventListener('change', (e) => { state.qtTargetCode = e.target.value; });
+document.getElementById('qtMicLang').addEventListener('change', (e) => { state.qtMicCode = e.target.value; });
+
+function qtRenderHistory(){
+  const el = document.getElementById('qtHistory');
+  if(!state.qtHistory.length){
+    el.innerHTML = '<div class="qtEmpty">မသိတဲ့ စာသားကို ကူးထည့်ပါ၊ ဓာတ်ပုံရိုက်ပါ၊<br>သို့မဟုတ် အသံနဲ့ မေးပါ — AI က ရွေးထားတဲ့ဘာသာစကားသို့ တိကျစွာ ပြန်ပေးပါလိမ့်မယ်။</div>';
+    return;
+  }
+  el.innerHTML = state.qtHistory.map(item => `
+    <div class="qtCard">
+      ${item.pending ? `
+        <div class="qtOriginal">${escapeHtml(item.queryLabel || item.originalText || '')}</div>
+        <hr>
+        <div class="qtTranslation"><span class="dotFlicker">translating…</span></div>
+      ` : `
+        <div class="qtBadges">
+          ${item.detectedLang ? `<span class="qtDetected">Detected: ${escapeHtml(item.detectedLang)}</span>` : ''}
+          ${item.usedOffline ? (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
+        </div>
+        <div class="qtOriginal">${escapeHtml(item.originalText)}</div>
+        <div class="miniControls">
+          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.originalText)}, this)'>${svgCopy()}</button>
+        </div>
+        <hr>
+        <div class="qtTranslation">${escapeHtml(item.translatedText)}</div>
+        <div class="miniControls">
+          <button class="iconBtn" title="Play" onclick='qtPlay(${item.id})'>${svgPlay()}</button>
+          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.translatedText)}, this)'>${svgCopy()}</button>
+        </div>
+      `}
+    </div>
+  `).join('');
+}
+
+function qtPlay(id){
+  const item = state.qtHistory.find(i => i.id === id);
+  if(!item || !item.translatedText) return;
+  const lang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+  speak(item.translatedText, lang);
+}
+
+async function qtTranslate(rawText, queryLabel){
+  rawText = (rawText || '').trim();
+  if(!rawText) return;
+  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+
+  const id = Date.now().toString();
+  state.qtHistory.unshift({ id, pending: true, queryLabel: queryLabel || rawText });
+  qtRenderHistory();
+
+  let translatedText = '';
+  let detectedLang = '';
+  let usedOffline = false;
+  let approx = false;
+
+  if(state.offlineForced || !state.apiKey){
+    usedOffline = true;
+    const remembered = tmLookup('auto', targetLang.code, rawText);
+    if(remembered){
+      translatedText = remembered;
+      approx = false;
+    } else {
+      // Heuristic: try the offline dictionary assuming each known language
+      // as the possible source, since we don't know what this text is.
+      let found = null;
+      for(const l of LANGUAGES){
+        if(l.code === targetLang.code) continue;
+        const off = offlineTranslate(rawText, l.code, targetLang.code);
+        if(off){ found = off; break; }
+      }
+      if(found){ translatedText = found.text; approx = found.approx; }
+      else { translatedText = `[Offline] ${rawText}`; approx = true; }
+    }
+  } else {
+    try{
+      const prompt = `Detect the language of the following message and translate it into ${targetLang.name}. `
+        + `Understand the full meaning first, then translate naturally the way a native ${targetLang.name} speaker would say it — not word-for-word.\n\n`
+        + `Respond in EXACTLY this format, nothing else:\n`
+        + `LANG: <name of the detected source language>\n`
+        + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
+        + `Message: "${rawText}"`;
+
+      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+        })
+      });
+
+      if(resp.ok){
+        const data = await resp.json();
+        const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+        const langMatch = raw.match(/LANG:\s*(.*)/i);
+        const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
+        detectedLang = langMatch ? langMatch[1].trim() : '';
+        translatedText = transMatch ? transMatch[1].trim() : raw;
+        if(translatedText){
+          tmSave('auto', targetLang.code, rawText, translatedText);
+        } else {
+          usedOffline = true; approx = true; translatedText = `[Empty response] ${rawText}`;
+        }
+      } else {
+        usedOffline = true; approx = true; translatedText = `[Network Error] ${rawText}`;
+      }
+    } catch(e){
+      usedOffline = true; approx = true; translatedText = `[Error Connection] ${rawText}`;
+    }
+  }
+
+  const item = state.qtHistory.find(i => i.id === id);
+  if(item){
+    Object.assign(item, {
+      pending: false, originalText: rawText, translatedText, detectedLang, usedOffline, approx
+    });
+  }
+  qtRenderHistory();
+  if(state.autoSpeak) speak(translatedText, targetLang);
+}
+
+document.getElementById('qtSendBtn').addEventListener('click', () => {
+  const input = document.getElementById('qtInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  qtTranslate(text);
+});
+document.getElementById('qtInput').addEventListener('input', (e) => {
+  e.target.style.height = 'auto';
+  e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px';
+});
+document.getElementById('qtInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    document.getElementById('qtSendBtn').click();
+  }
+});
+
+document.getElementById('qtCamBtn').addEventListener('click', () => {
+  document.getElementById('qtScanInput').click();
+});
+document.getElementById('qtScanInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  await qtScanAndTranslate(file);
+});
+
+async function qtScanAndTranslate(file){
+  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+  if(state.offlineForced || !state.apiKey){
+    alert('Scan feature က AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။');
+    return;
+  }
+  const id = Date.now().toString();
+  state.qtHistory.unshift({ id, pending: true, queryLabel: '(scanning photo…)' });
+  qtRenderHistory();
+
+  try{
+    const base64 = await fileToBase64(file);
+    const prompt = `Read all the text visible in this image (any language). Detect its language, then translate it into ${targetLang.name}, `
+      + `understanding the full meaning naturally rather than word-for-word.\n\n`
+      + `Respond in EXACTLY this format, nothing else:\n`
+      + `LANG: <name of the detected source language>\n`
+      + `ORIGINAL: <the text you read from the image>\n`
+      + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
+
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: prompt },
+          { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+        ] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+      })
+    });
+
+    if(!resp.ok){
+      let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
+      console.error('QT scan API error:', resp.status, bodyText);
+      alert(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`);
+      state.qtHistory = state.qtHistory.filter(i => i.id !== id);
+      qtRenderHistory();
+      return;
+    }
+
+    const data = await resp.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+    const langMatch = raw.match(/LANG:\s*(.*)/i);
+    const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATION:/i);
+    const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
+    const detectedLang = langMatch ? langMatch[1].trim() : '';
+    const originalText = origMatch ? origMatch[1].trim() : '(scanned image)';
+    const translatedText = transMatch ? transMatch[1].trim() : raw;
+
+    const item = state.qtHistory.find(i => i.id === id);
+    if(item){
+      Object.assign(item, { pending: false, originalText, translatedText, detectedLang, usedOffline: false, approx: false });
+    }
+    if(originalText) tmSave('auto', targetLang.code, originalText, translatedText);
+    qtRenderHistory();
+    if(state.autoSpeak) speak(translatedText, targetLang);
+  } catch(e){
+    console.error('QT scan failed:', e);
+    alert(`Scan translation အမှားဖြစ်သွားပါတယ်: ${e.message}`);
+    state.qtHistory = state.qtHistory.filter(i => i.id !== id);
+    qtRenderHistory();
+  }
+}
+
+let qtRecognition = null;
+document.getElementById('qtMicBtn').addEventListener('click', () => {
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognitionCtor){
+    alert('ဒီ browser မှာ voice input ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။');
+    return;
+  }
+  const micBtn = document.getElementById('qtMicBtn');
+  if(qtRecognition){
+    try{ qtRecognition.stop(); }catch(e){}
+    qtRecognition = null;
+    micBtn.classList.remove('listening');
+    return;
+  }
+  const micLang = langByCode(state.qtMicCode) || LANGUAGES[0];
+  qtRecognition = new SpeechRecognitionCtor();
+  qtRecognition.lang = micLang.ttsLocale;
+  qtRecognition.interimResults = false;
+  qtRecognition.maxAlternatives = 1;
+  micBtn.classList.add('listening');
+
+  qtRecognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    if(text && text.trim()) qtTranslate(text, `🎙️ ${text}`);
+  };
+  qtRecognition.onerror = (e) => {
+    if(e.error !== 'no-speech' && e.error !== 'aborted'){
+      alert('Voice input အမှားဖြစ်သွားပါတယ်: ' + e.error);
+    }
+  };
+  qtRecognition.onspeechend = () => { try{ qtRecognition.stop(); }catch(e){} };
+  qtRecognition.onend = () => { qtRecognition = null; micBtn.classList.remove('listening'); };
+
+  try{ qtRecognition.start(); } catch(e){ qtRecognition = null; micBtn.classList.remove('listening'); }
+});
+
+qtPopulateSelects();
+qtRenderHistory();
 
 /* =========================================================
    INIT
