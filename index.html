@@ -26,6 +26,28 @@
     --border2:rgba(255,255,255,0.18);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+
+  /* ===== Light theme override ===== */
+  body.light-theme{
+    --bg:#F4F5F7; --panelA:#FFFFFF; --panelB:#FAFAFB; --surface:#ECEDF0; --card:#FFFFFF;
+    --border:rgba(0,0,0,0.10); --border2:rgba(0,0,0,0.18);
+    color:#15161B;
+  }
+  body.light-theme .mainText, body.light-theme .qtTranslation{color:#15161B;}
+  body.light-theme .subText, body.light-theme .qtOriginal{color:#333;}
+  body.light-theme .bubbleRow.mine .bubble{background:#E4F8FB;}
+  body.light-theme .bubbleRow.theirs .bubble{background:#FDECEC;}
+  body.light-theme #modalCard{background:#fff;color:#15161B;}
+  body.light-theme .fieldLabel, body.light-theme .toggleRow>div:first-child>div:first-child{color:#15161B;}
+  body.light-theme input, body.light-theme select, body.light-theme textarea{color:#15161B;background:#fff;}
+  body.light-theme .desc{color:#666;}
+  body.light-theme .speedBtn{color:#333;}
+  body.light-theme #modeTabs{background:#ECEDF0;}
+  body.light-theme .modeTab{color:#555;}
+  body.light-theme .miniControls .iconBtn svg{fill:#555;}
+  body.light-theme .panel-header{background:rgba(0,0,0,0.03);}
+  body.light-theme .onboardingCard{background:#fff;color:#15161B;}
+  body.light-theme .onboardingCard p{color:#444;}
   button, .micBtn, .camBtn, .sendBtn, #autoBtn, #settingsBtn, .replayBtn{
     transition:transform .1s ease, background .15s ease, box-shadow .15s ease;
   }
@@ -193,6 +215,12 @@
     background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);
     border-radius:6px;padding:4px 7px;word-break:break-word;
   }
+  .verifyNote{
+    margin-top:6px;font-size:10px;color:#9be3ff;line-height:1.4;
+    background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);
+    border-radius:6px;padding:5px 8px;
+  }
+  .verifyNote b{color:var(--cyan);}
   .offlineBadge{color:#888;font-size:8px;font-weight:700;border:1px solid #555;border-radius:8px;padding:1px 5px;}
 
   /* ===== Input Row ===== */
@@ -304,6 +332,11 @@
     width:100%; background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:8px;
     padding:10px 12px; color:#fff; font-size:13px; font-family:inherit; outline:none;
   }
+  #glossaryInput{
+    width:100%; background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; color:#fff; font-size:12px; font-family:inherit; outline:none;
+    min-height:70px; resize:vertical; line-height:1.5;
+  }
   .toggleRow{display:flex;justify-content:space-between;align-items:center;margin-top:16px;}
   .toggleRow .desc{font-size:10px;color:#888;margin-top:2px;}
   .switch{position:relative;width:42px;height:24px;flex-shrink:0;}
@@ -327,6 +360,46 @@
   }
   .btnGhost{background:transparent;color:#888;}
   .btnPrimary{background:var(--cyan);color:#000;}
+
+  /* ===== Toasts ===== */
+  #toastContainer{
+    position:fixed;top:calc(env(safe-area-inset-top) + 54px);left:0;right:0;
+    z-index:200;display:flex;flex-direction:column;align-items:center;gap:8px;
+    pointer-events:none;padding:0 14px;
+  }
+  .toast{
+    max-width:420px;width:100%;background:#20222B;border:1px solid var(--border2);
+    border-radius:12px;padding:10px 14px;font-size:12.5px;color:#fff;line-height:1.4;
+    box-shadow:0 6px 20px rgba(0,0,0,0.5);
+    animation:toastIn .2s ease-out;
+  }
+  .toast.error{border-color:var(--red);background:#2A1517;}
+  .toast.warn{border-color:var(--amber);background:#2A2115;}
+  .toast.fadeOut{animation:toastOut .25s ease-in forwards;}
+  @keyframes toastIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes toastOut{from{opacity:1;}to{opacity:0;transform:translateY(-8px);}}
+
+  /* ===== Onboarding ===== */
+  .onboardingOverlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  .onboardingOverlay.show{display:flex;}
+  .onboardingCard{
+    background:var(--card);border:1px solid var(--border2);border-radius:18px;
+    padding:24px 20px;max-width:340px;text-align:center;
+  }
+  .obIcon{margin-bottom:10px;}
+  .onboardingCard h2{font-size:17px;margin:0 0 12px;}
+  .onboardingCard p{font-size:12.5px;color:#bbb;line-height:1.6;margin:0 0 10px;text-align:left;}
+  .obBtn{
+    width:100%;padding:12px;border-radius:12px;border:none;background:var(--cyan);
+    color:#000;font-weight:800;font-size:13px;margin-top:10px;cursor:pointer;
+  }
+  .obCheckRow{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:12px;font-size:11px;color:#888;}
+
+  /* ===== Message timestamp ===== */
+  .msgTime{font-size:8.5px;color:#777;margin-top:5px;text-align:right;}
 
   /* ===== Mode tabs ===== */
   #modeTabs{
@@ -380,6 +453,18 @@
 </style>
 </head>
 <body>
+<div id="toastContainer"></div>
+<div id="onboardingOverlay" class="onboardingOverlay">
+  <div class="onboardingCard">
+    <div class="obIcon">
+      <svg viewBox="0 0 24 24" width="40" height="40"><path fill="#00E5FF" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
+    </div>
+    <h2>Walkie-Talkie Translator</h2>
+    <p>ဖုန်းကို ကိုယ်နဲ့ တစ်ဖက်လူ ကြားမှာ ချထားပါ — အပေါ်ဘက် panel ကို <b>ရှေ့နေရာက လူဘက်</b>ကို လှည့်ထားလို့ အလှမ်းကနေ ဖတ်လို့ရအောင် ရည်ရွယ်ထားတာပါ (walkie-talkie style)။</p>
+    <p>အောက်ဘက် panel ကတော့ <b>ကိုယ့်ဘက်</b> အတွက်ပါ။ နှစ်ယောက်စလုံး ကိုယ့်ဘက်က စာကို မှန်မှန် ဖတ်နိုင်ပါတယ်။</p>
+    <button id="onboardingCloseBtn" class="obBtn">နားလည်ပါပြီ, စလိုက်ကြရအောင်</button>
+  </div>
+</div>
 
 <div id="statusBar">
   <div class="left">
@@ -387,12 +472,12 @@
     <span id="statusText">Offline Mode (Limited)</span>
   </div>
   <div class="barRight">
-    <div id="autoBtn" title="Hands-free back-and-forth: mic auto-restarts on the other side after each reply">
+    <div id="autoBtn" role="button" tabindex="0" aria-label="Toggle Auto Chat hands-free mode" title="Hands-free back-and-forth: mic auto-restarts on the other side after each reply">
       <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
       <span>AUTO CHAT</span>
       <span class="autoPulse"></span>
     </div>
-    <div id="settingsBtn">
+    <div id="settingsBtn" role="button" tabindex="0" aria-label="Open Settings">
       <svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
     </div>
   </div>
@@ -423,14 +508,14 @@
     <select id="qtMicLang"></select>
   </div>
   <div class="qtInputDock">
-    <button id="qtCamBtn" class="camBtn">
+    <button id="qtCamBtn" class="camBtn" aria-label="Scan a photo to translate">
       <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
     </button>
     <textarea id="qtInput" rows="1" placeholder="မသိတဲ့ စာသားကို ကူး/ရိုက်ထည့်ပါ..."></textarea>
-    <button id="qtMicBtn" class="micBtn">
+    <button id="qtMicBtn" class="micBtn" aria-label="Speak to translate">
       <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V21h2v-2.07A7 7 0 0 0 19 12h-2z"/></svg>
     </button>
-    <button id="qtSendBtn" class="sendBtn">
+    <button id="qtSendBtn" class="sendBtn" aria-label="Translate this text">
       <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
     </button>
   </div>
@@ -479,6 +564,27 @@
         <span class="slider"></span>
       </label>
     </div>
+    <div class="toggleRow">
+      <div>
+        <div style="font-size:13px;font-weight:700;">Light Theme</div>
+        <div class="desc">နေရောင်အောက်မှာ ဖတ်ရလွယ်အောင် အလင်း theme သို့ ပြောင်းပါ</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="lightThemeToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggleRow">
+      <div>
+        <div style="font-size:13px;font-weight:700;">Save Conversation History</div>
+        <div class="desc">App ပိတ်လည်း message log ကို ဖုန်းထဲမှာ သိမ်းထားမလား ရွေးပါ (default: မသိမ်းပါ)</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="saveHistoryToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <button type="button" id="clearHistoryBtn" class="btnGhost" aria-label="Clear conversation history" style="width:100%;padding:9px;border:1px solid var(--border2);border-radius:10px;margin-bottom:12px;font-size:11px;">🗑 Clear Conversation History</button>
     <hr class="divide">
     <div class="fieldLabel">Voice Speed (ဘာသာပြန် အသံ မြန်နှုန်း)</div>
     <div class="speedRow" id="speedRow">
@@ -487,11 +593,24 @@
       <button type="button" class="speedBtn" data-rate="1.1">🏃 Fast</button>
     </div>
     <hr class="divide">
+    <div class="fieldLabel">Translation Tone (ဘယ်လို အသံနေအသံထားနဲ့ ပြန်မလဲ)</div>
+    <div class="speedRow" id="toneRow">
+      <button type="button" class="speedBtn" data-tone="casual">😊 Casual</button>
+      <button type="button" class="speedBtn" data-tone="neutral">💬 Neutral</button>
+      <button type="button" class="speedBtn" data-tone="formal">🎩 Formal</button>
+    </div>
+    <hr class="divide">
+    <label class="fieldLabel">Custom Glossary (နာမည်/product name — ဘာသာမပြန်ချင်တဲ့ စကားလုံးများ)</label>
+    <textarea id="glossaryInput" placeholder="တစ်ကြောင်းစီ ခွဲရေးပါ, ဥပမာ:&#10;Innotech Myanmar&#10;Ko Aung Aung"></textarea>
+    <div class="fieldHint">ဒီစာရင်းထဲက စကားလုံးတွေကို AI က မူရင်းအတိုင်း ထားပေးပါလိမ့်မယ်၊ ဘာသာမပြန်ပါဘူး။</div>
+    <hr class="divide">
     <div class="fieldLabel">Offline Translation Engine</div>
-    <div class="mapNote">• 30+ ready-made survival &amp; work phrases (all 4 languages)
-• 40+ core vocabulary words for compositional matching
+    <div class="mapNote">• 60+ ready-made survival &amp; work phrases (core 4 languages)
+• 70+ core vocabulary words for compositional matching
+• Translation Memory: online ဖြစ်တုန်း AI ဘာသာပြန်ခဲ့တဲ့ message တွေကို auto မှတ်ထား၊ offline ဖြစ်ရင် ပြန်သုံးပေးပါတယ်
 • Network မရှိချိန်မှာ ရိုက်ထည့်တဲ့စာကို အသိစကားလုံးတွေနဲ့ တွဲပြီး အနီးစပ်ဆုံး ဘာသာပြန်ပေးပါတယ်
 • Exact phrase မတွေ့ရင် "≈ approximate" ဆိုပြီး ပြပေးပါမယ်</div>
+    <div class="fieldHint" id="versionFooter" style="margin-top:14px;text-align:center;"></div>
     <div class="modalActions">
       <button class="btnGhost" id="cancelBtn">CANCEL</button>
       <button class="btnPrimary" id="applyBtn">APPLY</button>
@@ -503,11 +622,35 @@
 /* =========================================================
    LANGUAGES
 ========================================================= */
+const APP_VERSION = '2026.07.03';
+
+function showToast(message, type){
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('fadeOut');
+    setTimeout(() => el.remove(), 300);
+  }, 4200);
+}
+
 const LANGUAGES = [
   {code:'en', name:'English (US)', flag:'🇺🇸', ttsLocale:'en-US'},
   {code:'my', name:'Myanmar (မြန်မာ)', flag:'🇲🇲', ttsLocale:'my-MM'},
   {code:'zh', name:'Chinese (中文)', flag:'🇨🇳', ttsLocale:'zh-CN'},
   {code:'th', name:'Thai (ไทย)', flag:'🇹🇭', ttsLocale:'th-TH'},
+  {code:'ja', name:'Japanese (日本語)', flag:'🇯🇵', ttsLocale:'ja-JP'},
+  {code:'ko', name:'Korean (한국어)', flag:'🇰🇷', ttsLocale:'ko-KR'},
+  {code:'vi', name:'Vietnamese (Tiếng Việt)', flag:'🇻🇳', ttsLocale:'vi-VN'},
+  {code:'hi', name:'Hindi (हिन्दी)', flag:'🇮🇳', ttsLocale:'hi-IN'},
+  {code:'fr', name:'French (Français)', flag:'🇫🇷', ttsLocale:'fr-FR'},
+  {code:'es', name:'Spanish (Español)', flag:'🇪🇸', ttsLocale:'es-ES'},
+  {code:'id', name:'Indonesian (Indonesia)', flag:'🇮🇩', ttsLocale:'id-ID'},
+  {code:'ms', name:'Malay (Melayu)', flag:'🇲🇾', ttsLocale:'ms-MY'},
+  {code:'tl', name:'Filipino (Tagalog)', flag:'🇵🇭', ttsLocale:'fil-PH'},
+  {code:'ar', name:'Arabic (العربية)', flag:'🇸🇦', ttsLocale:'ar-SA'},
 ];
 const langByCode = c => LANGUAGES.find(l => l.code === c);
 
@@ -776,6 +919,11 @@ const state = {
   speechRate: 0.85,
   autoSpeak: true,
   showTranslatedOut: true,
+  lastSent: {A: null, B: null},
+  lightTheme: false,
+  tone: 'neutral',
+  glossary: '',
+  saveHistory: false,
 };
 
 function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
@@ -812,7 +960,7 @@ function pickVoice(localeCode){
 
 function startStt(side){
   if(!recognition){
-    alert('ဒီ browser မှာ voice recognition ကို support မလုပ်ပါ။ Chrome browser သုံးကြည့်ပါ။');
+    showToast('ဒီ browser မှာ voice recognition ကို support မလုပ်ပါ။ Chrome browser သုံးကြည့်ပါ။', 'error');
     return;
   }
   // Interrupt any playback so listening starts immediately (feels faster)
@@ -833,7 +981,7 @@ function startStt(side){
     if(e.error === 'not-allowed' || e.error === 'permission-denied'){
       state.autoConversation = false; // can't run hands-free without mic access
       renderStatusBar();
-      alert('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။ Browser setting ထဲမှာ mic ခွင့်ပြုပေးပါ။');
+      showToast('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။ Browser setting ထဲမှာ mic ခွင့်ပြုပေးပါ။', 'error');
     }
     // Other errors (e.g. 'no-speech') fail silently so Auto Chat doesn't spam alerts.
   };
@@ -935,6 +1083,13 @@ async function speakViaGemini(text, onDone){
       const wavBlob = pcmBase64ToWavBlob(inline.data, 24000);
       url = URL.createObjectURL(wavBlob);
       ttsAudioCache.set(text, url);
+      // Cap the cache so long sessions don't accumulate unlimited audio blobs in memory.
+      if(ttsAudioCache.size > 60){
+        const oldestKey = ttsAudioCache.keys().next().value;
+        const oldestUrl = ttsAudioCache.get(oldestKey);
+        try{ URL.revokeObjectURL(oldestUrl); }catch(e){}
+        ttsAudioCache.delete(oldestKey);
+      }
     }
 
     if(currentAudioEl){ try{ currentAudioEl.pause(); }catch(e){} }
@@ -987,9 +1142,36 @@ async function speak(text, lang, onDone){
    TRANSLATION (Gemini API, natural/context-aware, with
    advanced offline fallback)
 ========================================================= */
+function toneInstruction(){
+  if(state.tone === 'formal') return 'Use a formal, respectful, professional register appropriate for business or official contexts.';
+  if(state.tone === 'casual') return 'Use a casual, friendly, relaxed everyday tone, like talking to a close friend.';
+  return 'Use a natural, neutral everyday tone — polite but not overly formal, not overly casual.';
+}
+function glossaryInstruction(){
+  if(!state.glossary) return '';
+  const terms = state.glossary.split('\n').map(t => t.trim()).filter(Boolean);
+  if(!terms.length) return '';
+  return `\nThese specific words/names must be kept EXACTLY as written in the original, never translated: ${terms.join(', ')}.\n`;
+}
+function conversationContextBlock(){
+  const recent = state.messages.slice(0, 5).filter(m => !m.pending).reverse();
+  if(!recent.length) return '';
+  const lines = recent.map(m => `${m.sender === 'A' ? 'Person A' : 'Person B'}: ${m.originalText}`).join('\n');
+  return `\nRecent conversation so far (for context only — helps with pronouns/references like "he/she/it/that"; do NOT translate this part, only translate the new message below):\n${lines}\n`;
+}
+
 async function handleTranslation(rawText, sender, isVoice){
   rawText = (rawText || '').trim();
   if(!rawText) return;
+
+  // Guard against accidental duplicate sends (double-tap Send, or Enter
+  // firing twice) — ignore an identical message from the same side within
+  // a short window rather than firing two API calls for it.
+  const now = Date.now();
+  if(state.lastSent[sender] && state.lastSent[sender].text === rawText && now - state.lastSent[sender].at < 1200){
+    return;
+  }
+  state.lastSent[sender] = { text: rawText, at: now };
 
   const isA = sender === 'A';
   state.translating[sender] = true;
@@ -1014,6 +1196,7 @@ async function handleTranslation(rawText, sender, isVoice){
     approx: false,
     usedOffline: false,
     pending: true,
+    timestamp: Date.now(),
   });
   renderPanel('A'); renderPanel('B');
 
@@ -1043,14 +1226,17 @@ async function handleTranslation(rawText, sender, isVoice){
         + `Translate the following message from ${sourceLang.name} into ${targetLang.name}.\n\n`
         + `IMPORTANT: Do NOT translate word-for-word. Understand the full meaning, tone, and intent of the message, `
         + `then express it the way a native ${targetLang.name} speaker would naturally say it out loud in this real-life situation `
-        + `(everyday / workplace conversation). Keep the same tone (casual, polite, urgent, friendly, etc.) as the original.\n\n`
-        + `Rules:\n`
-        + `- If translating into Burmese, use natural, everyday spoken Burmese (not overly formal/literary).\n`
+        + `(everyday / workplace conversation).\n\n`
+        + `Tone: ${toneInstruction()}\n`
+        + `${glossaryInstruction()}`
+        + `${conversationContextBlock()}`
+        + `\nRules:\n`
+        + `- If translating into Burmese, use natural, everyday spoken Burmese (not overly formal/literary), unless Tone above says otherwise.\n`
         + `- If translating into Chinese, use the polite/respectful form (您) unless the tone is clearly casual.\n`
         + `- If translating into Thai, include natural polite particles (ครับ/ค่ะ) where appropriate.\n`
         + `- If translating into English, use natural, conversational English.\n\n`
         + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
-        + `Message: "${rawText}"`;
+        + `Message to translate now: "${rawText}"`;
 
       const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
         method: 'POST',
@@ -1106,6 +1292,7 @@ async function handleTranslation(rawText, sender, isVoice){
 
   state.translating[sender] = false;
   renderPanel('A'); renderPanel('B');
+  vibrate(15);
 
   const continueAutoConversation = () => {
     // Auto Chat: once the translation has been spoken to the other person,
@@ -1146,7 +1333,7 @@ async function scanAndTranslate(file, side){
   const targetLang = isA ? state.langB : state.langA;
 
   if(state.offlineForced || !state.apiKey){
-    alert('Scan feature က Gemini API Key လိုအပ်ပါတယ် (offline dictionary က ဓာတ်ပုံထဲက စာကို မဖတ်နိုင်သေးပါ)။ Settings ထဲမှာ API Key ထည့်ပေးပါ။');
+    showToast('Scan feature အတွက် AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။', 'warn');
     return;
   }
 
@@ -1162,6 +1349,7 @@ async function scanAndTranslate(file, side){
     approx: false,
     usedOffline: false,
     pending: true,
+    timestamp: Date.now(),
   });
   renderPanel('A'); renderPanel('B');
 
@@ -1170,6 +1358,8 @@ async function scanAndTranslate(file, side){
     const prompt = `This photo contains visible text (a sign, label, document, screen, or handwriting), likely in ${sourceLang.name} but it could be in any language. `
       + `Step 1: Read every piece of text visible in the image exactly as written. `
       + `Step 2: Translate it into natural, fluent, native-sounding ${targetLang.name} — translate the full meaning and intent the way a native speaker would actually say it, NOT word-for-word. `
+      + `Tone: ${toneInstruction()} `
+      + `${glossaryInstruction()}`
       + `Respond in EXACTLY this format with no extra commentary:\n`
       + `ORIGINAL: <the text you read from the image>\n`
       + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
@@ -1199,7 +1389,7 @@ async function scanAndTranslate(file, side){
       let bodyText = '';
       try{ bodyText = await resp.text(); }catch(e2){}
       console.error('Gemini scan API error:', resp.status, bodyText);
-      alert(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})\n${bodyText.slice(0,200)}`);
+      showToast(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`, 'error');
       state.messages = state.messages.filter(m => m.id !== scanMsgId);
       state.translating[side] = false;
       renderPanel('A'); renderPanel('B');
@@ -1240,7 +1430,7 @@ async function scanAndTranslate(file, side){
     return;
   } catch(e){
     console.error('Gemini scan fetch failed:', e);
-    alert(`Scan translation အမှားတစ်ခုဖြစ်သွားပါတယ်: ${e.message}`);
+    showToast(`Scan translation အမှားတစ်ခုဖြစ်သွားပါတယ်: ${e.message}`, 'error');
     state.messages = state.messages.filter(m => m.id !== scanMsgId);
   }
 
@@ -1265,10 +1455,18 @@ function svgVolume(){return `<svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7
 function svgPlay(){return `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;}
 function svgCopy(){return `<svg viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>`;}
 function svgCheck(){return `<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>`;}
+function svgVerify(){return `<svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>`;}
 function svgTranslate(){return `<svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.05 4.98L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>`;}
 function svgCamera(){return `<svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2l-1.83 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>`;}
 
 function renderPanel(side){
+  if(side === 'A' && state.saveHistory){
+    try{
+      // Keep the persisted log from growing forever.
+      const trimmed = state.messages.slice(0, 200);
+      localStorage.setItem('wt_messages', JSON.stringify(trimmed));
+    }catch(e){ /* storage full/unavailable — history just won't persist this time */ }
+  }
   const isA = side === 'A';
   const container = document.getElementById('panel' + side);
   const currentLang = isA ? state.langA : state.langB;
@@ -1290,11 +1488,11 @@ function renderPanel(side){
     <div class="chatLog" id="chatLog${side}"></div>
     <div class="inputRow">
       <div class="textFieldWrap">
-        <input type="text" id="input${side}" placeholder="Type message to translate...">
-        <button class="sendBtn" id="sendBtn${side}">${svgSend()}</button>
+        <input type="text" id="input${side}" placeholder="Type message to translate..." aria-label="Message to translate">
+        <button class="sendBtn" id="sendBtn${side}" aria-label="Send and translate">${svgSend()}</button>
       </div>
-      <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo">${svgCamera()}</button>
-      <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="Tap to talk, auto-stops when you pause">
+      <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo" aria-label="Scan a photo to translate">${svgCamera()}</button>
+      <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="Tap to talk, auto-stops when you pause" aria-label="Speak to translate">
         ${isTranslating ? '<div class="spinner"></div>' : svgMic()}
       </button>
     </div>
@@ -1308,6 +1506,7 @@ function renderPanel(side){
     renderPanel('A'); renderPanel('B');
   });
   document.getElementById('sendBtn'+side).addEventListener('click', ()=>{
+    vibrate(10);
     const input = document.getElementById('input'+side);
     handleTranslation(input.value, side, false);
   });
@@ -1371,8 +1570,8 @@ function renderChatLog(side){
           <div class="mainText">${showMainPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(mainRaw)}</div>
           ${showMainPending ? '' : `
           <div class="miniControls">
-            <button class="iconBtn" title="Play" onclick='playBlock(${JSON.stringify(mainRaw)}, "${mainSide}")'>${svgPlay()}</button>
-            <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(mainRaw)}, this)'>${svgCopy()}</button>
+            <button class="iconBtn" title="Play" aria-label="Play audio" onclick='playBlock(${JSON.stringify(mainRaw)}, "${mainSide}")'>${svgPlay()}</button>
+            <button class="iconBtn" title="Copy" aria-label="Copy text" onclick='copyBlock(${JSON.stringify(mainRaw)}, this)'>${svgCopy()}</button>
           </div>`}
           ${hideSub ? '' : `
           <hr>
@@ -1382,10 +1581,13 @@ function renderChatLog(side){
           <div class="subText">${showSubPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(subRaw)}</div>
           ${showSubPending ? '' : `
           <div class="miniControls">
-            <button class="iconBtn" title="Play" onclick='playBlock(${JSON.stringify(subRaw)}, "${subSide}")'>${svgPlay()}</button>
-            <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(subRaw)}, this)'>${svgCopy()}</button>
-          </div>`}`}
+            <button class="iconBtn" title="Play" aria-label="Play audio" onclick='playBlock(${JSON.stringify(subRaw)}, "${subSide}")'>${svgPlay()}</button>
+            <button class="iconBtn" title="Copy" aria-label="Copy text" onclick='copyBlock(${JSON.stringify(subRaw)}, this)'>${svgCopy()}</button>
+            ${isMine ? `<button class="iconBtn" title="Verify: translate back to check accuracy" onclick='verifyBlock("${msg.id}", ${JSON.stringify(subRaw)}, "${subSide}", "${mainSide}", this)'>${svgVerify()}</button>` : ''}
+          </div>
+          ${isMine ? `<div id="verify-${msg.id}"></div>` : ''}`}`}
           ${msg.errorDetail ? `<div class="errorDetail">⚠ ${escapeHtml(msg.errorDetail)}</div>` : ''}
+          ${msg.timestamp ? `<div class="msgTime">${formatTime(msg.timestamp)}</div>` : ''}
         </div>
       </div>
     `;
@@ -1395,6 +1597,46 @@ function renderChatLog(side){
 function playBlock(text, side){
   const lang = side === 'A' ? state.langA : state.langB;
   speak(text, lang);
+}
+
+async function verifyBlock(msgId, text, fromSide, toSide, btnEl){
+  if(state.offlineForced || !state.apiKey){
+    showToast('Verify feature အတွက် AI Translation Key လိုအပ်ပါတယ်', 'warn');
+    return;
+  }
+  const fromLang = fromSide === 'A' ? state.langA : state.langB;
+  const toLang = toSide === 'A' ? state.langA : state.langB;
+  const target = document.getElementById('verify-' + msgId);
+  btnEl.disabled = true;
+  const originalIcon = btnEl.innerHTML;
+  btnEl.innerHTML = '<span class="dotFlicker">…</span>';
+
+  try{
+    const prompt = `Translate the following ${fromLang.name} text into ${toLang.name} as literally and accurately as possible `
+      + `(this is for a back-translation accuracy check, not for natural conversation — precision matters more than fluency here). `
+      + `Return ONLY the translation, nothing else.\n\nText: "${text}"`;
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } }
+      })
+    });
+    if(resp.ok){
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim();
+      if(target && raw){
+        target.innerHTML = `<div class="verifyNote"><b>🔄 Back-translation check:</b> ${escapeHtml(raw)}</div>`;
+      }
+    } else {
+      showToast('Verify မအောင်မြင်ပါ — ပြန်စမ်းကြည့်ပါ', 'error');
+    }
+  } catch(e){
+    showToast('Verify အမှားဖြစ်သွားပါတယ်: ' + e.message, 'error');
+  }
+  btnEl.innerHTML = originalIcon;
+  btnEl.disabled = false;
 }
 
 async function copyBlock(text, btnEl){
@@ -1414,9 +1656,23 @@ async function copyBlock(text, btnEl){
   const original = btnEl.innerHTML;
   btnEl.innerHTML = svgCheck();
   btnEl.disabled = true;
+  vibrate(8);
   setTimeout(()=>{ btnEl.innerHTML = original; btnEl.disabled = false; }, 1100);
 }
 
+
+function vibrate(ms){
+  try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){}
+}
+
+function formatTime(ts){
+  const d = new Date(ts);
+  let h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if(h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
 
 function escapeHtml(str){
   const d = document.createElement('div');
@@ -1439,6 +1695,15 @@ function renderStatusBar(){
   autoBtn.classList.toggle('pulsing', state.autoConversation && isActive);
 }
 
+['autoBtn', 'settingsBtn'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      document.getElementById(id).click();
+    }
+  });
+});
+
 document.getElementById('autoBtn').addEventListener('click', ()=>{
   state.autoConversation = !state.autoConversation;
   if(!state.autoConversation){
@@ -1458,36 +1723,65 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('offlineToggle').checked = state.offlineForced;
   document.getElementById('autoSpeakToggle').checked = state.autoSpeak;
   document.getElementById('showTranslatedOutToggle').checked = state.showTranslatedOut;
-  document.querySelectorAll('.speedBtn').forEach(btn => {
+  document.getElementById('lightThemeToggle').checked = state.lightTheme;
+  document.getElementById('saveHistoryToggle').checked = state.saveHistory;
+  document.getElementById('glossaryInput').value = state.glossary;
+  document.getElementById('versionFooter').textContent = 'Walkie-Talkie Translator · v' + APP_VERSION;
+  document.querySelectorAll('#speedRow .speedBtn').forEach(btn => {
     btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.speechRate);
+  });
+  document.querySelectorAll('#toneRow .speedBtn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tone === state.tone);
   });
   overlay.classList.add('show');
 });
 document.querySelectorAll('.speedBtn').forEach(btn => {
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.speedBtn').forEach(b => b.classList.remove('active'));
+    const row = btn.closest('.speedRow');
+    row.querySelectorAll('.speedBtn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    btn.dataset.selected = '1';
   });
 });
 document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.classList.remove('show'));
+document.getElementById('clearHistoryBtn').addEventListener('click', ()=>{
+  state.messages = [];
+  try{ localStorage.removeItem('wt_messages'); }catch(e){}
+  renderPanel('A'); renderPanel('B');
+  showToast('Conversation history ကို ရှင်းလိုက်ပါပြီ။');
+});
 document.getElementById('applyBtn').addEventListener('click', ()=>{
   state.apiKey = document.getElementById('apiKeyInput').value.trim();
   state.offlineForced = document.getElementById('offlineToggle').checked;
   state.autoSpeak = document.getElementById('autoSpeakToggle').checked;
   state.showTranslatedOut = document.getElementById('showTranslatedOutToggle').checked;
-  const activeSpeedBtn = document.querySelector('.speedBtn.active');
+  state.lightTheme = document.getElementById('lightThemeToggle').checked;
+  state.saveHistory = document.getElementById('saveHistoryToggle').checked;
+  state.glossary = document.getElementById('glossaryInput').value.trim();
+  document.body.classList.toggle('light-theme', state.lightTheme);
+  const activeSpeedBtn = document.querySelector('#speedRow .speedBtn.active');
   if(activeSpeedBtn) state.speechRate = parseFloat(activeSpeedBtn.dataset.rate);
+  const activeToneBtn = document.querySelector('#toneRow .speedBtn.active');
+  if(activeToneBtn) state.tone = activeToneBtn.dataset.tone;
   try{
     localStorage.setItem('wt_apiKey', state.apiKey);
     localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
     localStorage.setItem('wt_speechRate', String(state.speechRate));
     localStorage.setItem('wt_autoSpeak', state.autoSpeak ? '1' : '0');
     localStorage.setItem('wt_showTranslatedOut', state.showTranslatedOut ? '1' : '0');
-  }catch(e){ /* storage unavailable — key just won't persist */ }
+    localStorage.setItem('wt_lightTheme', state.lightTheme ? '1' : '0');
+    localStorage.setItem('wt_tone', state.tone);
+    localStorage.setItem('wt_glossary', state.glossary);
+    localStorage.setItem('wt_saveHistory', state.saveHistory ? '1' : '0');
+    if(state.saveHistory){
+      localStorage.setItem('wt_messages', JSON.stringify(state.messages.slice(0, 200)));
+    } else {
+      localStorage.removeItem('wt_messages');
+    }
+  }catch(e){ /* storage unavailable — settings just won't persist */ }
   overlay.classList.remove('show');
   renderStatusBar();
   renderPanel('A'); renderPanel('B');
+  showToast('Settings သိမ်းပြီးပါပြီ။');
 });
 overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
 
@@ -1600,7 +1894,9 @@ async function qtTranslate(rawText, queryLabel){
     try{
       const prompt = `Detect the language of the following message and translate it into ${targetLang.name}. `
         + `Understand the full meaning first, then translate naturally the way a native ${targetLang.name} speaker would say it — not word-for-word.\n\n`
-        + `Respond in EXACTLY this format, nothing else:\n`
+        + `Tone: ${toneInstruction()}\n`
+        + `${glossaryInstruction()}`
+        + `\nRespond in EXACTLY this format, nothing else:\n`
         + `LANG: <name of the detected source language>\n`
         + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
         + `Message: "${rawText}"`;
@@ -1676,7 +1972,7 @@ document.getElementById('qtScanInput').addEventListener('change', async (e) => {
 async function qtScanAndTranslate(file){
   const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
   if(state.offlineForced || !state.apiKey){
-    alert('Scan feature က AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။');
+    showToast('Scan feature အတွက် AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။', 'warn');
     return;
   }
   const id = Date.now().toString();
@@ -1687,7 +1983,9 @@ async function qtScanAndTranslate(file){
     const base64 = await fileToBase64(file);
     const prompt = `Read all the text visible in this image (any language). Detect its language, then translate it into ${targetLang.name}, `
       + `understanding the full meaning naturally rather than word-for-word.\n\n`
-      + `Respond in EXACTLY this format, nothing else:\n`
+      + `Tone: ${toneInstruction()}\n`
+      + `${glossaryInstruction()}`
+      + `\nRespond in EXACTLY this format, nothing else:\n`
       + `LANG: <name of the detected source language>\n`
       + `ORIGINAL: <the text you read from the image>\n`
       + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
@@ -1707,7 +2005,7 @@ async function qtScanAndTranslate(file){
     if(!resp.ok){
       let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
       console.error('QT scan API error:', resp.status, bodyText);
-      alert(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`);
+      showToast(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`, 'error');
       state.qtHistory = state.qtHistory.filter(i => i.id !== id);
       qtRenderHistory();
       return;
@@ -1731,7 +2029,7 @@ async function qtScanAndTranslate(file){
     if(state.autoSpeak) speak(translatedText, targetLang);
   } catch(e){
     console.error('QT scan failed:', e);
-    alert(`Scan translation အမှားဖြစ်သွားပါတယ်: ${e.message}`);
+    showToast(`Scan translation အမှားဖြစ်သွားပါတယ်: ${e.message}`, 'error');
     state.qtHistory = state.qtHistory.filter(i => i.id !== id);
     qtRenderHistory();
   }
@@ -1741,7 +2039,7 @@ let qtRecognition = null;
 document.getElementById('qtMicBtn').addEventListener('click', () => {
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognitionCtor){
-    alert('ဒီ browser မှာ voice input ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။');
+    showToast('ဒီ browser မှာ voice input ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။', 'error');
     return;
   }
   const micBtn = document.getElementById('qtMicBtn');
@@ -1764,7 +2062,7 @@ document.getElementById('qtMicBtn').addEventListener('click', () => {
   };
   qtRecognition.onerror = (e) => {
     if(e.error !== 'no-speech' && e.error !== 'aborted'){
-      alert('Voice input အမှားဖြစ်သွားပါတယ်: ' + e.error);
+      showToast('Voice input အမှားဖြစ်သွားပါတယ်: ' + e.error, 'error');
     }
   };
   qtRecognition.onspeechend = () => { try{ qtRecognition.stop(); }catch(e){} };
@@ -1785,16 +2083,40 @@ try{
   const savedRate = localStorage.getItem('wt_speechRate');
   const savedAutoSpeak = localStorage.getItem('wt_autoSpeak');
   const savedShowSub = localStorage.getItem('wt_showTranslatedOut');
+  const savedTheme = localStorage.getItem('wt_lightTheme');
+  const savedTone = localStorage.getItem('wt_tone');
+  const savedGlossary = localStorage.getItem('wt_glossary');
+  const savedSaveHistory = localStorage.getItem('wt_saveHistory');
   if(savedKey) state.apiKey = savedKey;
   if(savedOffline !== null) state.offlineForced = savedOffline === '1';
   if(savedRate) state.speechRate = parseFloat(savedRate);
   if(savedAutoSpeak !== null) state.autoSpeak = savedAutoSpeak === '1';
   if(savedShowSub !== null) state.showTranslatedOut = savedShowSub === '1';
+  if(savedTheme === '1'){ state.lightTheme = true; document.body.classList.add('light-theme'); }
+  if(savedTone) state.tone = savedTone;
+  if(savedGlossary) state.glossary = savedGlossary;
+  if(savedSaveHistory !== null) state.saveHistory = savedSaveHistory === '1';
+
+  if(state.saveHistory){
+    const savedMsgs = localStorage.getItem('wt_messages');
+    if(savedMsgs) state.messages = JSON.parse(savedMsgs);
+  }
 }catch(e){ /* storage unavailable — falls back to blank each launch */ }
 
 renderStatusBar();
 renderPanel('A');
 renderPanel('B');
+
+// First-launch onboarding: explain the rotated face-to-face panel design.
+try{
+  if(!localStorage.getItem('wt_onboardingSeen')){
+    document.getElementById('onboardingOverlay').classList.add('show');
+  }
+}catch(e){}
+document.getElementById('onboardingCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('onboardingOverlay').classList.remove('show');
+  try{ localStorage.setItem('wt_onboardingSeen', '1'); }catch(e){}
+});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
