@@ -221,6 +221,36 @@
     border-radius:6px;padding:5px 8px;
   }
   .verifyNote b{color:var(--cyan);}
+
+  /* ===== Phrasebook ===== */
+  #phrasebookOverlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:250;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  #phrasebookOverlay.show{display:flex;}
+  #phrasebookCard{
+    background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:480px;
+    max-height:78vh;display:flex;flex-direction:column;padding:16px;
+    padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    animation:pbSlideUp .2s ease-out;
+  }
+  @keyframes pbSlideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .pbHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;}
+  .pbHeader h2{font-size:15px;margin:0;}
+  #pbCategories{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;flex-shrink:0;-webkit-overflow-scrolling:touch;}
+  .pbCatBtn{
+    flex-shrink:0;padding:8px 12px;border-radius:20px;border:1px solid var(--border2);
+    background:var(--surface);color:#aaa;font-size:11.5px;font-weight:700;cursor:pointer;
+    white-space:nowrap;touch-action:manipulation;
+  }
+  .pbCatBtn.active{background:var(--cyan);border-color:var(--cyan);color:#000;}
+  #pbPhraseList{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
+  .pbPhraseItem{
+    padding:12px;border-radius:10px;background:var(--surface);margin-bottom:8px;
+    cursor:pointer;font-size:13px;color:#fff;line-height:1.4;touch-action:manipulation;
+    border:1px solid var(--border);
+  }
+  .pbPhraseItem:active{background:rgba(0,229,255,0.12);border-color:var(--cyan);}
   .offlineBadge{color:#888;font-size:8px;font-weight:700;border:1px solid #555;border-radius:8px;padding:1px 5px;}
 
   /* ===== Input Row ===== */
@@ -338,6 +368,17 @@
     min-height:70px; resize:vertical; line-height:1.5;
   }
   .toggleRow{display:flex;justify-content:space-between;align-items:center;margin-top:16px;}
+  #settingsTabs{
+    display:flex;gap:6px;margin:14px 0 16px;overflow-x:auto;padding-bottom:2px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .settingsTab{
+    flex-shrink:0;padding:8px 12px;border-radius:10px;border:1px solid var(--border2);
+    background:var(--surface);color:#999;font-size:11.5px;font-weight:700;cursor:pointer;
+    touch-action:manipulation;white-space:nowrap;
+  }
+  .settingsTab.active{background:var(--cyan);border-color:var(--cyan);color:#000;}
+  .settingsPane{min-height:120px;}
   .toggleRow .desc{font-size:10px;color:#888;margin-top:2px;}
   .switch{position:relative;width:42px;height:24px;flex-shrink:0;}
   .switch input{opacity:0;width:0;height:0;}
@@ -524,6 +565,19 @@
 <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="qtScanInput" accept="image/*" capture="environment" style="display:none">
 
+<div id="phrasebookOverlay">
+  <div id="phrasebookCard">
+    <div class="pbHeader">
+      <h2>📋 Quick Phrasebook</h2>
+      <button id="pbCloseBtn" class="iconBtn" aria-label="Close phrasebook" style="width:30px;height:30px;">
+        <svg viewBox="0 0 24 24"><path fill="#ccc" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div id="pbCategories"></div>
+    <div id="pbPhraseList"></div>
+  </div>
+</div>
+
 <!-- Settings Modal -->
 <div id="modalOverlay">
   <div id="modalCard">
@@ -531,86 +585,146 @@
       <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
       Settings
     </h2>
-    <label class="fieldLabel">AI Translation Key</label>
-    <input id="apiKeyInput" type="password" placeholder="AIzaSy...">
-    <div class="fieldHint">Key ကို <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> မှာ အခမဲ့ ရယူနိုင်ပါတယ်။ Key ကို ဖုန်းထဲမှာပဲ သိမ်းထားပြီး ဘယ်နေရာကိုမှ ပို့မထားပါ။</div>
-    <div class="toggleRow">
-      <div>
-        <div style="font-size:13px;font-weight:700;">Force Offline Mode</div>
-        <div class="desc">Network မရှိတဲ့အခါ ဒါမှမဟုတ် စမ်းသပ်ချင်ရင် ဖွင့်ပါ</div>
+
+    <div id="settingsTabs">
+      <button type="button" class="settingsTab active" data-tab="account">🔑 Account</button>
+      <button type="button" class="settingsTab" data-tab="voice">🔊 Voice</button>
+      <button type="button" class="settingsTab" data-tab="translate">🌐 Translation</button>
+      <button type="button" class="settingsTab" data-tab="appearance">🎨 Appearance</button>
+      <button type="button" class="settingsTab" data-tab="data">💾 Data</button>
+    </div>
+
+    <div class="settingsPane" data-pane="account">
+      <div class="fieldLabel">Backend Mode</div>
+      <div class="speedRow" id="backendModeRow">
+        <button type="button" class="speedBtn" data-mode="key">🔑 My Own Key</button>
+        <button type="button" class="speedBtn" data-mode="proxy">🌐 Secure Proxy</button>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="offlineToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="toggleRow">
-      <div>
-        <div style="font-size:13px;font-weight:700;">Auto-Speak Translation</div>
-        <div class="desc">Translate ပြီးတာနဲ့ အသံ တန်းထွက်။ ပိတ်ထားရင် ▶ နှိပ်မှ ပြောပါလိမ့်မယ်</div>
+      <div class="fieldHint" style="margin-bottom:14px;">"My Own Key" = key ကို ဒီ device ထဲမှာပဲ သိမ်းထားမယ် (personal use အတွက် လုံလောက်ပါတယ်)။ "Secure Proxy" = key ကို client မှာ လုံးဝမသိမ်းဘဲ backend server (Cloudflare Worker) ကနေတစ်ဆင့် ခေါ်မယ် — အများသုံးအောင် app ဖြန့်မယ်ဆိုရင် ဒါကို သုံးရမယ်။</div>
+
+      <div id="ownKeyFields">
+        <label class="fieldLabel">AI Translation Key</label>
+        <input id="apiKeyInput" type="password" placeholder="AIzaSy...">
+        <div class="fieldHint">Key ကို <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> မှာ အခမဲ့ ရယူနိုင်ပါတယ်။ Key ကို ဖုန်းထဲမှာပဲ သိမ်းထားပြီး ဘယ်နေရာကိုမှ ပို့မထားပါ။</div>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="autoSpeakToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="toggleRow">
-      <div>
-        <div style="font-size:13px;font-weight:700;">Show "Translated Out" Preview</div>
-        <div class="desc">ကိုယ်ပို့လိုက်တဲ့ စာရဲ့ ဘာသာပြန်ကို bubble အောက်မှာ ပြမပြ ရွေးပါ</div>
+      <div id="proxyFields" style="display:none;">
+        <label class="fieldLabel">Proxy URL</label>
+        <input id="proxyUrlInput" type="url" placeholder="https://your-worker.workers.dev">
+        <div class="fieldHint">Cloudflare Worker (ဒါမှမဟုတ် တခြား backend) ရဲ့ URL ကို ထည့်ပါ — API key ကို client ဘက်ကနေ လုံးဝ မပို့တော့ပါ။</div>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="showTranslatedOutToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="toggleRow">
-      <div>
-        <div style="font-size:13px;font-weight:700;">Light Theme</div>
-        <div class="desc">နေရောင်အောက်မှာ ဖတ်ရလွယ်အောင် အလင်း theme သို့ ပြောင်းပါ</div>
+
+      <hr class="divide">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Force Offline Mode</div>
+          <div class="desc">Network မရှိတဲ့အခါ ဒါမှမဟုတ် စမ်းသပ်ချင်ရင် ဖွင့်ပါ</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="offlineToggle">
+          <span class="slider"></span>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="lightThemeToggle">
-        <span class="slider"></span>
-      </label>
     </div>
-    <div class="toggleRow">
-      <div>
-        <div style="font-size:13px;font-weight:700;">Save Conversation History</div>
-        <div class="desc">App ပိတ်လည်း message log ကို ဖုန်းထဲမှာ သိမ်းထားမလား ရွေးပါ (default: မသိမ်းပါ)</div>
+
+    <div class="settingsPane" data-pane="voice" style="display:none;">
+      <div class="fieldLabel">Voice Engine (အသံ ဘယ်ကနေ ထွက်မလဲ)</div>
+      <div class="speedRow" id="voiceEngineRow">
+        <button type="button" class="speedBtn" data-engine="auto">⚡ Auto</button>
+        <button type="button" class="speedBtn" data-engine="ai">🤖 AI Voice</button>
+        <button type="button" class="speedBtn" data-engine="device">📱 Device</button>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="saveHistoryToggle">
-        <span class="slider"></span>
-      </label>
+      <div class="fieldHint">Auto = AI voice အရင်စမ်း၊ မရရင် device voice။ AI Voice ကတော့ Internet/Key လိုပေမယ့် မြန်မာအပါအဝင် ဘာသာစကားတိုင်းအတွက် အာမခံပါတယ်။ Device ကတော့ offline သုံးလို့ရပေမယ့် မြန်မာကို ဖုန်းအများစုက support မလုပ်ပါ။</div>
+      <hr class="divide">
+      <div class="fieldLabel">Voice Speed (ဘာသာပြန် အသံ မြန်နှုန်း)</div>
+      <div class="speedRow" id="speedRow">
+        <button type="button" class="speedBtn" data-rate="0.6">🐢 Slow</button>
+        <button type="button" class="speedBtn" data-rate="0.85">🚶 Normal</button>
+        <button type="button" class="speedBtn" data-rate="1.1">🏃 Fast</button>
+      </div>
+      <hr class="divide">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Hold-to-Talk (PTT)</div>
+          <div class="desc">အစစ် Walkie-Talkie လိုမျိုး — mic ခလုတ်ကို ဖိထားပြီး ပြော၊ လက်လွှတ်လိုက်တာနဲ့ ဘာသာပြန်ပါလိမ့်မယ်</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="holdToTalkToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <hr class="divide">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Auto-Speak Translation</div>
+          <div class="desc">Translate ပြီးတာနဲ့ အသံ တန်းထွက်။ ပိတ်ထားရင် ▶ နှိပ်မှ ပြောပါလိမ့်မယ်</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoSpeakToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
-    <button type="button" id="clearHistoryBtn" class="btnGhost" aria-label="Clear conversation history" style="width:100%;padding:9px;border:1px solid var(--border2);border-radius:10px;margin-bottom:12px;font-size:11px;">🗑 Clear Conversation History</button>
-    <hr class="divide">
-    <div class="fieldLabel">Voice Speed (ဘာသာပြန် အသံ မြန်နှုန်း)</div>
-    <div class="speedRow" id="speedRow">
-      <button type="button" class="speedBtn" data-rate="0.6">🐢 Slow</button>
-      <button type="button" class="speedBtn" data-rate="0.85">🚶 Normal</button>
-      <button type="button" class="speedBtn" data-rate="1.1">🏃 Fast</button>
-    </div>
-    <hr class="divide">
-    <div class="fieldLabel">Translation Tone (ဘယ်လို အသံနေအသံထားနဲ့ ပြန်မလဲ)</div>
-    <div class="speedRow" id="toneRow">
-      <button type="button" class="speedBtn" data-tone="casual">😊 Casual</button>
-      <button type="button" class="speedBtn" data-tone="neutral">💬 Neutral</button>
-      <button type="button" class="speedBtn" data-tone="formal">🎩 Formal</button>
-    </div>
-    <hr class="divide">
-    <label class="fieldLabel">Custom Glossary (နာမည်/product name — ဘာသာမပြန်ချင်တဲ့ စကားလုံးများ)</label>
-    <textarea id="glossaryInput" placeholder="တစ်ကြောင်းစီ ခွဲရေးပါ, ဥပမာ:&#10;Innotech Myanmar&#10;Ko Aung Aung"></textarea>
-    <div class="fieldHint">ဒီစာရင်းထဲက စကားလုံးတွေကို AI က မူရင်းအတိုင်း ထားပေးပါလိမ့်မယ်၊ ဘာသာမပြန်ပါဘူး။</div>
-    <hr class="divide">
-    <div class="fieldLabel">Offline Translation Engine</div>
-    <div class="mapNote">• 60+ ready-made survival &amp; work phrases (core 4 languages)
+
+    <div class="settingsPane" data-pane="translate" style="display:none;">
+      <div class="fieldLabel">Translation Tone (ဘယ်လို အသံနေအသံထားနဲ့ ပြန်မလဲ)</div>
+      <div class="speedRow" id="toneRow">
+        <button type="button" class="speedBtn" data-tone="casual">😊 Casual</button>
+        <button type="button" class="speedBtn" data-tone="neutral">💬 Neutral</button>
+        <button type="button" class="speedBtn" data-tone="formal">🎩 Formal</button>
+      </div>
+      <hr class="divide">
+      <label class="fieldLabel">Custom Glossary (နာမည်/product name — ဘာသာမပြန်ချင်တဲ့ စကားလုံးများ)</label>
+      <textarea id="glossaryInput" placeholder="တစ်ကြောင်းစီ ခွဲရေးပါ, ဥပမာ:&#10;Innotech Myanmar&#10;Ko Aung Aung"></textarea>
+      <div class="fieldHint">ဒီစာရင်းထဲက စကားလုံးတွေကို AI က မူရင်းအတိုင်း ထားပေးပါလိမ့်မယ်၊ ဘာသာမပြန်ပါဘူး။</div>
+      <hr class="divide">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Show "Translated Out" Preview</div>
+          <div class="desc">ကိုယ်ပို့လိုက်တဲ့ စာရဲ့ ဘာသာပြန်ကို bubble အောက်မှာ ပြမပြ ရွေးပါ</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="showTranslatedOutToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <hr class="divide">
+      <div class="fieldLabel">Offline Translation Engine</div>
+      <div class="mapNote">• 60+ ready-made survival &amp; work phrases
 • 70+ core vocabulary words for compositional matching
-• Translation Memory: online ဖြစ်တုန်း AI ဘာသာပြန်ခဲ့တဲ့ message တွေကို auto မှတ်ထား၊ offline ဖြစ်ရင် ပြန်သုံးပေးပါတယ်
-• Network မရှိချိန်မှာ ရိုက်ထည့်တဲ့စာကို အသိစကားလုံးတွေနဲ့ တွဲပြီး အနီးစပ်ဆုံး ဘာသာပြန်ပေးပါတယ်
-• Exact phrase မတွေ့ရင် "≈ approximate" ဆိုပြီး ပြပေးပါမယ်</div>
-    <div class="fieldHint" id="versionFooter" style="margin-top:14px;text-align:center;"></div>
+• Full offline dictionary support: 🇺🇸English · 🇲🇲Myanmar · 🇨🇳Chinese · 🇹🇭Thai · 🇫🇷French · 🇪🇸Spanish (language picker ထဲမှာ "Offline✓" လို့ မှတ်ထားပါတယ်)
+• ကျန်တဲ့ ဘာသာစကားများ (Japanese, Korean, Vietnamese, Hindi, Indonesian, Malay, Filipino, Arabic) — Internet ရှိမှသာ ဘာသာပြန်လို့ရပါတယ်
+• Translation Memory: online ဖြစ်တုန်း AI ဘာသာပြန်ခဲ့တဲ့ message တွေကို auto မှတ်ထား၊ offline ဖြစ်ရင် ပြန်သုံးပေးပါတယ်</div>
+    </div>
+
+    <div class="settingsPane" data-pane="appearance" style="display:none;">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Light Theme</div>
+          <div class="desc">နေရောင်အောက်မှာ ဖတ်ရလွယ်အောင် အလင်း theme သို့ ပြောင်းပါ</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="lightThemeToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settingsPane" data-pane="data" style="display:none;">
+      <div class="toggleRow" style="margin-top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">Save Conversation History</div>
+          <div class="desc">App ပိတ်လည်း message log ကို ဖုန်းထဲမှာ သိမ်းထားမလား ရွေးပါ (default: မသိမ်းပါ)</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="saveHistoryToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <button type="button" id="exportHistoryBtn" class="btnGhost" aria-label="Export conversation as text file" style="width:100%;padding:9px;border:1px solid var(--border2);border-radius:10px;margin-top:12px;font-size:11px;">📄 Export Conversation (.txt)</button>
+      <button type="button" id="clearHistoryBtn" class="btnGhost" aria-label="Clear conversation history" style="width:100%;padding:9px;border:1px solid var(--border2);border-radius:10px;margin-top:10px;font-size:11px;">🗑 Clear Conversation History</button>
+      <div class="fieldHint" id="versionFooter" style="margin-top:20px;text-align:center;"></div>
+    </div>
+
     <div class="modalActions">
       <button class="btnGhost" id="cancelBtn">CANCEL</button>
       <button class="btnPrimary" id="applyBtn">APPLY</button>
@@ -654,6 +768,14 @@ const LANGUAGES = [
 ];
 const langByCode = c => LANGUAGES.find(l => l.code === c);
 
+// Languages with real offline dictionary + translation-memory support.
+// Shown as "Offline✓" in language pickers so people know what still works
+// with zero internet, versus languages that need the AI (online only).
+const OFFLINE_LANG_CODES = new Set(['en', 'my', 'zh', 'th', 'fr', 'es']);
+function langOptionLabel(l){
+  return `${l.flag} ${l.name}${OFFLINE_LANG_CODES.has(l.code) ? ' · Offline✓' : ''}`;
+}
+
 /* =========================================================
    OFFLINE TRANSLATION ENGINE
    Unified multilingual table (phrase-level + word-level),
@@ -661,136 +783,184 @@ const langByCode = c => LANGUAGES.find(l => l.code === c);
    with exact match, substring match, and compositional
    (word-by-word) fallback matching for network-down scenarios.
 ========================================================= */
+const PHRASEBOOK = [
+  // 🚨 Emergency
+  {cat:'emergency', en:"I need help immediately.", my:"ငါအခုချက်ချင်း အကူအညီလိုအပ်နေပါတယ်။", zh:"我现在马上需要帮助。", th:"ฉันต้องการความช่วยเหลือทันทีครับ/ค่ะ", fr:"J'ai besoin d'aide immédiatement.", es:"Necesito ayuda de inmediato."},
+  {cat:'emergency', en:"Please call the police.", my:"ရဲကိုခေါ်ပေးပါ။", zh:"请报警。", th:"กรุณาโทรแจ้งตำรวจครับ/ค่ะ", fr:"Veuillez appeler la police.", es:"Por favor, llame a la policía."},
+  {cat:'emergency', en:"I lost my passport/ID.", my:"ငါ့ passport/ID ပျောက်သွားပါတယ်။", zh:"我的护照/身份证丢了。", th:"หนังสือเดินทาง/บัตรประชาชนของฉันหายครับ/ค่ะ", fr:"J'ai perdu mon passeport/pièce d'identité.", es:"Perdí mi pasaporte/identificación."},
+  {cat:'emergency', en:"There has been an accident.", my:"မတော်တဆမှု ဖြစ်ပွားခဲ့ပါတယ်။", zh:"发生了一起事故。", th:"เกิดอุบัติเหตุขึ้นครับ/ค่ะ", fr:"Il y a eu un accident.", es:"Ha habido un accidente."},
+  {cat:'emergency', en:"I am in danger, please help.", my:"ငါအန္တရာယ်ရှိနေပါတယ်၊ ကူညီပေးပါ။", zh:"我有危险，请帮帮我。", th:"ฉันอยู่ในอันตราย กรุณาช่วยด้วยครับ/ค่ะ", fr:"Je suis en danger, aidez-moi s'il vous plaît.", es:"Estoy en peligro, por favor ayúdenme."},
+  {cat:'emergency', en:"Please take me to a hospital.", my:"ငါ့ကိုဆေးရုံခေါ်သွားပေးပါ။", zh:"请带我去医院。", th:"กรุณาพาฉันไปโรงพยาบาลครับ/ค่ะ", fr:"Emmenez-moi à l'hôpital, s'il vous plaît.", es:"Por favor, llévenme a un hospital."},
+
+  // 🏥 Medical
+  {cat:'medical', en:"I am sick and need a doctor.", my:"ငါနေမကောင်းဖြစ်နေလို့ ဆရာဝန်လိုအပ်ပါတယ်။", zh:"我生病了，需要看医生。", th:"ฉันไม่สบายและต้องการหมอครับ/ค่ะ", fr:"Je suis malade et j'ai besoin d'un médecin.", es:"Estoy enfermo y necesito un médico."},
+  {cat:'medical', en:"I am allergic to this medicine.", my:"ငါဒီဆေးကို allergy ဖြစ်တယ်။", zh:"我对这种药过敏。", th:"ฉันแพ้ยาตัวนี้ครับ/ค่ะ", fr:"Je suis allergique à ce médicament.", es:"Soy alérgico a este medicamento."},
+  {cat:'medical', en:"I am pregnant.", my:"ငါကိုယ်ဝန်ရှိပါတယ်။", zh:"我怀孕了。", th:"ฉันตั้งครรภ์ครับ/ค่ะ", fr:"Je suis enceinte.", es:"Estoy embarazada."},
+  {cat:'medical', en:"I have a fever.", my:"ငါဖျားနေတယ်။", zh:"我发烧了。", th:"ฉันมีไข้ครับ/ค่ะ", fr:"J'ai de la fièvre.", es:"Tengo fiebre."},
+  {cat:'medical', en:"It hurts here.", my:"ဒီနေရာကနာနေတယ်။", zh:"这里很痛。", th:"ตรงนี้เจ็บครับ/ค่ะ", fr:"Ça fait mal ici.", es:"Me duele aquí."},
+  {cat:'medical', en:"I need to buy medicine.", my:"ငါဆေးဝယ်ရန်လိုအပ်ပါတယ်။", zh:"我需要买药。", th:"ฉันต้องการซื้อยาครับ/ค่ะ", fr:"J'ai besoin d'acheter des médicaments.", es:"Necesito comprar medicina."},
+
+  // 💼 Workplace
+  {cat:'workplace', en:"I want to report unsafe working conditions.", my:"အန္တရာယ်ရှိတဲ့ အလုပ်ခွင်အခြေအနေကို တိုင်ကြားချင်ပါတယ်။", zh:"我想举报不安全的工作条件。", th:"ฉันต้องการแจ้งสภาพการทำงานที่ไม่ปลอดภัยครับ/ค่ะ", fr:"Je veux signaler des conditions de travail dangereuses.", es:"Quiero denunciar condiciones de trabajo inseguras."},
+  {cat:'workplace', en:"I have not been paid yet.", my:"ငါ့ကို လစာမပေးရသေးပါဘူး။", zh:"我还没有拿到工资。", th:"ฉันยังไม่ได้รับค่าจ้างครับ/ค่ะ", fr:"Je n'ai pas encore été payé.", es:"Todavía no me han pagado."},
+  {cat:'workplace', en:"I was injured at work.", my:"ငါအလုပ်ခွင်မှာ ဒဏ်ရာရခဲ့ပါတယ်။", zh:"我在工作中受伤了。", th:"ฉันได้รับบาดเจ็บจากการทำงานครับ/ค่ะ", fr:"J'ai été blessé au travail.", es:"Me lastimé en el trabajo."},
+  {cat:'workplace', en:"Can I have a day off?", my:"ငါတစ်ရက်ခွင့်ယူလို့ရမလား။", zh:"我可以请一天假吗？", th:"ฉันขอลาหยุดหนึ่งวันได้ไหมครับ/ค่ะ", fr:"Puis-je prendre un jour de congé ?", es:"¿Puedo tomarme un día libre?"},
+  {cat:'workplace', en:"What are my working hours?", my:"ငါ့ အလုပ်ချိန်က ဘယ်လိုလဲ။", zh:"我的工作时间是怎样的？", th:"เวลาทำงานของฉันคือเมื่อไหร่ครับ/ค่ะ", fr:"Quels sont mes horaires de travail ?", es:"¿Cuáles son mis horas de trabajo?"},
+  {cat:'workplace', en:"I want to keep a copy of my contract.", my:"ငါ့ contract ကူးမိတ္တူတစ်စောင် ငါလက်ဝယ်ထားချင်ပါတယ်။", zh:"我想保留一份我的合同副本。", th:"ฉันต้องการเก็บสำเนาสัญญาของฉันครับ/ค่ะ", fr:"Je veux garder une copie de mon contrat.", es:"Quiero conservar una copia de mi contrato."},
+
+  // 🏠 Housing
+  {cat:'housing', en:"I need a place to stay.", my:"ငါနေစရာနေရာလိုအပ်ပါတယ်။", zh:"我需要一个住的地方。", th:"ฉันต้องการที่พักครับ/ค่ะ", fr:"J'ai besoin d'un endroit où loger.", es:"Necesito un lugar donde alojarme."},
+  {cat:'housing', en:"The rent is due.", my:"အိမ်ငှားခ ပေးရမယ့်အချိန် ရောက်နေပါပြီ။", zh:"房租到期了。", th:"ถึงกำหนดจ่ายค่าเช่าแล้วครับ/ค่ะ", fr:"Le loyer est dû.", es:"El alquiler está vencido."},
+  {cat:'housing', en:"The landlord has not fixed this.", my:"အိမ်ရှင်က ဒါကို မပြင်ပေးသေးပါဘူး။", zh:"房东还没有修理这个。", th:"เจ้าของบ้านยังไม่ได้ซ่อมสิ่งนี้ครับ/ค่ะ", fr:"Le propriétaire n'a pas encore réparé ceci.", es:"El propietario no ha reparado esto todavía."},
+  {cat:'housing', en:"I want to move out.", my:"ငါပြောင်းရွှေ့ချင်ပါတယ်။", zh:"我想搬出去。", th:"ฉันต้องการย้ายออกครับ/ค่ะ", fr:"Je veux déménager.", es:"Quiero mudarme."},
+
+  // 💰 Wages
+  {cat:'wages', en:"When will I be paid?", my:"ငါ့ကို ဘယ်တော့လစာပေးမှာလဲ။", zh:"我什么时候能拿到工资？", th:"ฉันจะได้รับค่าจ้างเมื่อไหร่ครับ/ค่ะ", fr:"Quand serai-je payé ?", es:"¿Cuándo me pagarán?"},
+  {cat:'wages', en:"This is not the correct amount.", my:"ဒါက မှန်ကန်တဲ့ ပမာဏ မဟုတ်ပါဘူး။", zh:"这个金额不对。", th:"จำนวนเงินนี้ไม่ถูกต้องครับ/ค่ะ", fr:"Ce n'est pas le bon montant.", es:"Esta no es la cantidad correcta."},
+  {cat:'wages', en:"I need a receipt for this payment.", my:"ဒီငွေပေးချေမှုအတွက် ငွေလက်ခံဖြတ်ပိုင်း လိုအပ်ပါတယ်။", zh:"我需要这笔付款的收据。", th:"ฉันต้องการใบเสร็จสำหรับการชำระเงินนี้ครับ/ค่ะ", fr:"J'ai besoin d'un reçu pour ce paiement.", es:"Necesito un recibo de este pago."},
+  {cat:'wages', en:"What is the hourly rate?", my:"တစ်နာရီ ဘယ်လောက်ကျသလဲ။", zh:"每小时的工资是多少？", th:"ค่าจ้างต่อชั่วโมงเท่าไหร่ครับ/ค่ะ", fr:"Quel est le taux horaire ?", es:"¿Cuál es la tarifa por hora?"},
+
+  // ✈️ Immigration/Legal
+  {cat:'immigration', en:"I need to renew my visa/work permit.", my:"ငါ့ visa/အလုပ်လုပ်ခွင့်ကို သက်တမ်းတိုးဖို့ လိုအပ်ပါတယ်။", zh:"我需要续签我的签证/工作许可证。", th:"ฉันต้องต่ออายุวีซ่า/ใบอนุญาตทำงานครับ/ค่ะ", fr:"Je dois renouveler mon visa/permis de travail.", es:"Necesito renovar mi visa/permiso de trabajo."},
+  {cat:'immigration', en:"Where is the immigration office?", my:"လူဝင်မှုကြီးကြပ်ရေးရုံး ဘယ်မှာလဲ။", zh:"移民局在哪里？", th:"สำนักงานตรวจคนเข้าเมืองอยู่ที่ไหนครับ/ค่ะ", fr:"Où se trouve le bureau de l'immigration ?", es:"¿Dónde está la oficina de inmigración?"},
+  {cat:'immigration', en:"I need a translator.", my:"ငါစကားပြန်တစ်ယောက် လိုအပ်ပါတယ်။", zh:"我需要一名翻译。", th:"ฉันต้องการล่ามครับ/ค่ะ", fr:"J'ai besoin d'un interprète.", es:"Necesito un intérprete."},
+  {cat:'immigration', en:"I need legal help.", my:"ငါ့မှာ ဥပဒေရေးရာ အကူအညီ လိုအပ်ပါတယ်။", zh:"我需要法律援助。", th:"ฉันต้องการความช่วยเหลือทางกฎหมายครับ/ค่ะ", fr:"J'ai besoin d'une aide juridique.", es:"Necesito ayuda legal."},
+  {cat:'immigration', en:"Here is my documentation.", my:"ဒါကငါ့ စာရွက်စာတမ်းများ ဖြစ်ပါတယ်။", zh:"这是我的证件。", th:"นี่คือเอกสารของฉันครับ/ค่ะ", fr:"Voici mes documents.", es:"Aquí están mis documentos."},
+];
+// Fold the phrasebook into the main offline dictionary too — these are
+// hand-verified, high-value phrases, so they get guaranteed-accurate
+// offline translation, not just a fast quick-insert shortcut.
 const PHRASES = [
-  {en:"Hello.", my:"မင်္ဂလာပါ။", zh:"您好。", th:"สวัสดีครับ/ค่ะ"},
-  {en:"Thank you very much.", my:"ကျေးဇူးအများကြီးတင်ပါတယ်။", zh:"非常感谢您。", th:"ขอบคุณมากครับ/ค่ะ"},
-  {en:"Yes, that's correct.", my:"ဟုတ်ကဲ့၊ မှန်ပါတယ်။", zh:"是的，没错。", th:"ใช่ครับ/ค่ะ ถูกต้องแล้ว"},
-  {en:"No, that's not right.", my:"မဟုတ်ပါဘူး၊ မှန်မှုမရှိပါဘူး။", zh:"不，不对。", th:"ไม่ใช่ครับ/ค่ะ ไม่ถูกต้อง"},
-  {en:"Please help me.", my:"ကျေးဇူးပြု၍ ကူညီပေးပါ။", zh:"请帮帮我。", th:"กรุณาช่วยฉันด้วยครับ/ค่ะ"},
-  {en:"Please wait a moment.", my:"ခဏလေးစောင့်ပေးပါ။", zh:"请稍等一下。", th:"กรุณารอสักครู่ครับ/ค่ะ"},
-  {en:"The work is done.", my:"အလုပ်ပြီးပါပြီ။", zh:"工作已经完成了。", th:"งานเสร็จเรียบร้อยแล้วครับ/ค่ะ"},
-  {en:"The shipment has arrived.", my:"ပစ္စည်းများရောက်ရှိပါပြီ။", zh:"货物已经送到了。", th:"สินค้ามาถึงแล้วครับ/ค่ะ"},
-  {en:"How much does it cost?", my:"ဒါဘယ်လောက်ကျသလဲ။", zh:"这个多少钱？", th:"อันนี้ราคาเท่าไหร่ครับ/ค่ะ"},
-  {en:"I don't understand.", my:"နားမလည်ပါဘူး။", zh:"我不太明白。", th:"ไม่เข้าใจครับ/ค่ะ"},
-  {en:"Could you repeat that please?", my:"ကျေးဇူးပြု၍ ထပ်ပြောပေးပါ။", zh:"麻烦您再说一遍。", th:"ช่วยพูดอีกครั้งได้ไหมครับ/ค่ะ"},
-  {en:"Be careful, it's dangerous.", my:"သတိထားပါ၊ အန္တရာယ်ရှိပါတယ်။", zh:"小心，这很危险。", th:"ระวังนะครับ/ค่ะ อันตราย"},
-  {en:"Please slow down.", my:"ကျေးဇူးပြု၍ ဖြည်းဖြည်းလုပ်ပေးပါ။", zh:"请慢一点。", th:"กรุณาช้าลงหน่อยครับ/ค่ะ"},
-  {en:"Good morning.", my:"မင်္ဂလာနံနက်ခင်းပါ။", zh:"早上好。", th:"อรุณสวัสดิ์ครับ/ค่ะ"},
-  {en:"Good evening.", my:"မင်္ဂလာညနေခင်းပါ။", zh:"晚上好。", th:"สวัสดีตอนเย็นครับ/ค่ะ"},
-  {en:"See you tomorrow.", my:"မနက်ဖြန်တွေ့မယ်နော်။", zh:"明天见。", th:"แล้วเจอกันพรุ่งนี้ครับ/ค่ะ"},
-  {en:"I'm sorry.", my:"တောင်းပန်ပါတယ်။", zh:"对不起。", th:"ขอโทษครับ/ค่ะ"},
-  {en:"It's okay, no problem.", my:"ရပါတယ်၊ ပြဿနာမရှိပါဘူး။", zh:"没关系，没问题。", th:"ไม่เป็นไรครับ/ค่ะ"},
-  {en:"Where is the bathroom?", my:"အိမ်သာဘယ်မှာလဲ။", zh:"洗手间在哪里？", th:"ห้องน้ำอยู่ที่ไหนครับ/ค่ะ"},
-  {en:"I need to rest.", my:"ငါခဏနားချင်ပါတယ်။", zh:"我需要休息一下。", th:"ฉันต้องพักสักครู่ครับ/ค่ะ"},
-  {en:"Let's start work now.", my:"အခုအလုပ်စလုပ်ကြရအောင်။", zh:"我们现在开始工作吧。", th:"เริ่มทำงานกันเลยครับ/ค่ะ"},
-  {en:"Please check this.", my:"ဒါကိုစစ်ဆေးပေးပါ။", zh:"请检查一下这个。", th:"กรุณาตรวจสอบอันนี้ครับ/ค่ะ"},
-  {en:"This is broken.", my:"ဒါပျက်နေပါတယ်။", zh:"这个坏了。", th:"อันนี้เสียครับ/ค่ะ"},
-  {en:"I will call you.", my:"ငါဖုန်းဆက်မယ်နော်။", zh:"我会给你打电话。", th:"ฉันจะโทรหาคุณครับ/ค่ะ"},
-  {en:"What time is it now?", my:"အခုဘယ်နှစ်နာရီရှိပြီလဲ။", zh:"现在几点了？", th:"ตอนนี้กี่โมงแล้วครับ/ค่ะ"},
-  {en:"I am on my way.", my:"ငါလာနေပါပြီ။", zh:"我在路上了。", th:"ฉันกำลังไปครับ/ค่ะ"},
-  {en:"Please sign here.", my:"ဒီနေရာမှာလက်မှတ်ထိုးပေးပါ။", zh:"请在这里签名。", th:"กรุณาเซ็นชื่อตรงนี้ครับ/ค่ะ"},
-  {en:"Congratulations!", my:"ဂုဏ်ယူပါတယ်။", zh:"恭喜你！", th:"ยินดีด้วยครับ/ค่ะ"},
-  {en:"Take care of yourself.", my:"ကိုယ်ကိုယ်ကိုသေချာထိန်းသိမ်းပါ။", zh:"请照顾好自己。", th:"ดูแลตัวเองด้วยนะครับ/ค่ะ"},
-  {en:"Let's go.", my:"သွားကြရအောင်။", zh:"我们走吧。", th:"ไปกันเถอะครับ/ค่ะ"},
-  {en:"How are you?", my:"နေကောင်းလား။", zh:"你好吗？", th:"สบายดีไหมครับ/ค่ะ"},
-  {en:"I am fine.", my:"နေကောင်းပါတယ်။", zh:"我很好。", th:"สบายดีครับ/ค่ะ"},
-  {en:"I am tired.", my:"ငါပင်ပန်းနေတယ်။", zh:"我累了。", th:"ฉันเหนื่อยครับ/ค่ะ"},
-  {en:"What is your name?", my:"နာမည်ဘယ်လိုခေါ်လဲ။", zh:"你叫什么名字？", th:"คุณชื่ออะไรครับ/ค่ะ"},
-  {en:"Nice to meet you.", my:"တွေ့ရတာ ဝမ်းသာပါတယ်။", zh:"很高兴认识你。", th:"ยินดีที่ได้รู้จักครับ/ค่ะ"},
-  {en:"Where are you going?", my:"ဘယ်သွားမလို့လဲ။", zh:"你要去哪里？", th:"คุณจะไปไหนครับ/ค่ะ"},
-  {en:"What did you eat today?", my:"ဒီနေ့ ဘာစားခဲ့လဲ။", zh:"你今天吃了什么？", th:"วันนี้คุณกินอะไรครับ/ค่ะ"},
-  {en:"What should we eat today?", my:"ဒီနေ့ ဘာစားရင်ကောင်းမလဲ။", zh:"我们今天吃什么好呢？", th:"วันนี้กินอะไรดีครับ/ค่ะ"},
-  {en:"I have a headache.", my:"ငါခေါင်းကိုက်နေတယ်။", zh:"我头疼。", th:"ฉันปวดหัวครับ/ค่ะ"},
-  {en:"I feel sick.", my:"ငါနေမကောင်းဘူး။", zh:"我不舒服。", th:"ฉันรู้สึกไม่สบายครับ/ค่ะ"},
-  {en:"Please call a doctor.", my:"ဆရာဝန်ကိုခေါ်ပေးပါ။", zh:"请叫医生。", th:"กรุณาเรียกหมอครับ/ค่ะ"},
-  {en:"I don't have money.", my:"ငါ့မှာပိုက်ဆံမရှိဘူး။", zh:"我没有钱。", th:"ฉันไม่มีเงินครับ/ค่ะ"},
-  {en:"How many people?", my:"ဘယ်နှစ်ယောက်ရှိလဲ။", zh:"有几个人？", th:"มีกี่คนครับ/ค่ะ"},
-  {en:"What time should I come?", my:"ဘယ်အချိန်လာရမလဲ။", zh:"我应该几点来？", th:"ควรมาตอนกี่โมงครับ/ค่ะ"},
-  {en:"I will be late.", my:"ငါနောက်ကျမယ်။", zh:"我会迟到。", th:"ฉันจะไปสายครับ/ค่ะ"},
-  {en:"I am on the way to work.", my:"အလုပ်ကို သွားနေပါတယ်။", zh:"我正在去上班的路上。", th:"ฉันกำลังไปทำงานครับ/ค่ะ"},
-  {en:"Please explain how to do it.", my:"ဘယ်လိုလုပ်ရမလဲ ပြောပြပါဦး။", zh:"请解释一下怎么做。", th:"กรุณาอธิบายวิธีทำครับ/ค่ะ"},
-  {en:"I don't know what to say.", my:"ဘာပြောရမှန်းတောင်မသိဘူး။", zh:"我不知道该说什么。", th:"ฉันไม่รู้จะพูดอะไรครับ/ค่ะ"},
-  {en:"Turn left.", my:"ဘယ်ဘက်ကွေ့ပါ။", zh:"向左转。", th:"เลี้ยวซ้ายครับ/ค่ะ"},
-  {en:"Turn right.", my:"ညာဘက်ကွေ့ပါ။", zh:"向右转。", th:"เลี้ยวขวาครับ/ค่ะ"},
-  {en:"Go straight.", my:"တည့်တည့်သွားပါ။", zh:"直走。", th:"ตรงไปครับ/ค่ะ"},
-  {en:"Stop here.", my:"ဒီမှာရပ်ပါ။", zh:"停在这里。", th:"หยุดตรงนี้ครับ/ค่ะ"},
-  {en:"I like it.", my:"ငါကြိုက်တယ်။", zh:"我喜欢。", th:"ฉันชอบครับ/ค่ะ"},
-  {en:"I don't like it.", my:"ငါမကြိုက်ဘူး။", zh:"我不喜欢。", th:"ฉันไม่ชอบครับ/ค่ะ"},
-  {en:"Is this okay?", my:"ဒါဖြစ်လား။", zh:"这样可以吗？", th:"แบบนี้ได้ไหมครับ/ค่ะ"},
-  {en:"Everything is fine.", my:"အားလုံးအဆင်ပြေပါတယ်။", zh:"一切都好。", th:"ทุกอย่างเรียบร้อยดีครับ/ค่ะ"},
-  {en:"I need more time.", my:"ငါ့မှာအချိန်ပိုလိုအပ်တယ်။", zh:"我需要更多时间。", th:"ฉันต้องการเวลาเพิ่มครับ/ค่ะ"},
-  {en:"Let me think about it.", my:"စဉ်းစားကြည့်ရအောင်။", zh:"让我想一想。", th:"ขอคิดดูก่อนครับ/ค่ะ"},
-  {en:"I already finished it.", my:"ငါပြီးသွားပြီ။", zh:"我已经完成了。", th:"ฉันทำเสร็จแล้วครับ/ค่ะ"},
+  ...PHRASEBOOK.map(({cat, ...rest}) => rest),
+  {en:"Hello.", my:"မင်္ဂလာပါ။", zh:"您好。", th:"สวัสดีครับ/ค่ะ", fr:"Bonjour.", es:"Hola."},
+  {en:"Thank you very much.", my:"ကျေးဇူးအများကြီးတင်ပါတယ်။", zh:"非常感谢您。", th:"ขอบคุณมากครับ/ค่ะ", fr:"Merci beaucoup.", es:"Muchas gracias."},
+  {en:"Yes, that's correct.", my:"ဟုတ်ကဲ့၊ မှန်ပါတယ်။", zh:"是的，没错。", th:"ใช่ครับ/ค่ะ ถูกต้องแล้ว", fr:"Oui, c'est exact.", es:"Sí, es correcto."},
+  {en:"No, that's not right.", my:"မဟုတ်ပါဘူး၊ မှန်မှုမရှိပါဘူး။", zh:"不，不对。", th:"ไม่ใช่ครับ/ค่ะ ไม่ถูกต้อง", fr:"Non, ce n'est pas correct.", es:"No, eso no es correcto."},
+  {en:"Please help me.", my:"ကျေးဇူးပြု၍ ကူညီပေးပါ။", zh:"请帮帮我。", th:"กรุณาช่วยฉันด้วยครับ/ค่ะ", fr:"Aidez-moi, s'il vous plaît.", es:"Por favor, ayúdame."},
+  {en:"Please wait a moment.", my:"ခဏလေးစောင့်ပေးပါ။", zh:"请稍等一下。", th:"กรุณารอสักครู่ครับ/ค่ะ", fr:"Veuillez patienter un instant.", es:"Espere un momento, por favor."},
+  {en:"The work is done.", my:"အလုပ်ပြီးပါပြီ။", zh:"工作已经完成了。", th:"งานเสร็จเรียบร้อยแล้วครับ/ค่ะ", fr:"Le travail est terminé.", es:"El trabajo está terminado."},
+  {en:"The shipment has arrived.", my:"ပစ္စည်းများရောက်ရှိပါပြီ။", zh:"货物已经送到了。", th:"สินค้ามาถึงแล้วครับ/ค่ะ", fr:"La livraison est arrivée.", es:"El envío ha llegado."},
+  {en:"How much does it cost?", my:"ဒါဘယ်လောက်ကျသလဲ။", zh:"这个多少钱？", th:"อันนี้ราคาเท่าไหร่ครับ/ค่ะ", fr:"Combien ça coûte ?", es:"¿Cuánto cuesta esto?"},
+  {en:"I don't understand.", my:"နားမလည်ပါဘူး။", zh:"我不太明白。", th:"ไม่เข้าใจครับ/ค่ะ", fr:"Je ne comprends pas.", es:"No entiendo."},
+  {en:"Could you repeat that please?", my:"ကျေးဇူးပြု၍ ထပ်ပြောပေးပါ။", zh:"麻烦您再说一遍。", th:"ช่วยพูดอีกครั้งได้ไหมครับ/ค่ะ", fr:"Pourriez-vous répéter, s'il vous plaît ?", es:"¿Podría repetirlo, por favor?"},
+  {en:"Be careful, it's dangerous.", my:"သတိထားပါ၊ အန္တရာယ်ရှိပါတယ်။", zh:"小心，这很危险。", th:"ระวังนะครับ/ค่ะ อันตราย", fr:"Faites attention, c'est dangereux.", es:"Ten cuidado, es peligroso."},
+  {en:"Please slow down.", my:"ကျေးဇူးပြု၍ ဖြည်းဖြည်းလုပ်ပေးပါ။", zh:"请慢一点。", th:"กรุณาช้าลงหน่อยครับ/ค่ะ", fr:"Veuillez ralentir.", es:"Por favor, más despacio."},
+  {en:"Good morning.", my:"မင်္ဂလာနံနက်ခင်းပါ။", zh:"早上好。", th:"อรุณสวัสดิ์ครับ/ค่ะ", fr:"Bonjour.", es:"Buenos días."},
+  {en:"Good evening.", my:"မင်္ဂလာညနေခင်းပါ။", zh:"晚上好。", th:"สวัสดีตอนเย็นครับ/ค่ะ", fr:"Bonsoir.", es:"Buenas tardes."},
+  {en:"See you tomorrow.", my:"မနက်ဖြန်တွေ့မယ်နော်။", zh:"明天见。", th:"แล้วเจอกันพรุ่งนี้ครับ/ค่ะ", fr:"À demain.", es:"Hasta mañana."},
+  {en:"I'm sorry.", my:"တောင်းပန်ပါတယ်။", zh:"对不起。", th:"ขอโทษครับ/ค่ะ", fr:"Je suis désolé.", es:"Lo siento."},
+  {en:"It's okay, no problem.", my:"ရပါတယ်၊ ပြဿနာမရှိပါဘူး။", zh:"没关系，没问题。", th:"ไม่เป็นไรครับ/ค่ะ", fr:"C'est bon, pas de problème.", es:"Está bien, no hay problema."},
+  {en:"Where is the bathroom?", my:"အိမ်သာဘယ်မှာလဲ။", zh:"洗手间在哪里？", th:"ห้องน้ำอยู่ที่ไหนครับ/ค่ะ", fr:"Où sont les toilettes ?", es:"¿Dónde está el baño?"},
+  {en:"I need to rest.", my:"ငါခဏနားချင်ပါတယ်။", zh:"我需要休息一下。", th:"ฉันต้องพักสักครู่ครับ/ค่ะ", fr:"J'ai besoin de me reposer.", es:"Necesito descansar."},
+  {en:"Let's start work now.", my:"အခုအလုပ်စလုပ်ကြရအောင်။", zh:"我们现在开始工作吧。", th:"เริ่มทำงานกันเลยครับ/ค่ะ", fr:"Commençons le travail maintenant.", es:"Empecemos a trabajar ahora."},
+  {en:"Please check this.", my:"ဒါကိုစစ်ဆေးပေးပါ။", zh:"请检查一下这个。", th:"กรุณาตรวจสอบอันนี้ครับ/ค่ะ", fr:"Veuillez vérifier ceci.", es:"Por favor, revisa esto."},
+  {en:"This is broken.", my:"ဒါပျက်နေပါတယ်။", zh:"这个坏了。", th:"อันนี้เสียครับ/ค่ะ", fr:"C'est cassé.", es:"Esto está roto."},
+  {en:"I will call you.", my:"ငါဖုန်းဆက်မယ်နော်။", zh:"我会给你打电话。", th:"ฉันจะโทรหาคุณครับ/ค่ะ", fr:"Je vous appellerai.", es:"Te llamaré."},
+  {en:"What time is it now?", my:"အခုဘယ်နှစ်နာရီရှိပြီလဲ။", zh:"现在几点了？", th:"ตอนนี้กี่โมงแล้วครับ/ค่ะ", fr:"Quelle heure est-il ?", es:"¿Qué hora es?"},
+  {en:"I am on my way.", my:"ငါလာနေပါပြီ။", zh:"我在路上了。", th:"ฉันกำลังไปครับ/ค่ะ", fr:"Je suis en route.", es:"Voy en camino."},
+  {en:"Please sign here.", my:"ဒီနေရာမှာလက်မှတ်ထိုးပေးပါ။", zh:"请在这里签名。", th:"กรุณาเซ็นชื่อตรงนี้ครับ/ค่ะ", fr:"Veuillez signer ici.", es:"Firme aquí, por favor."},
+  {en:"Congratulations!", my:"ဂုဏ်ယူပါတယ်။", zh:"恭喜你！", th:"ยินดีด้วยครับ/ค่ะ", fr:"Félicitations !", es:"¡Felicidades!"},
+  {en:"Take care of yourself.", my:"ကိုယ်ကိုယ်ကိုသေချာထိန်းသိမ်းပါ။", zh:"请照顾好自己。", th:"ดูแลตัวเองด้วยนะครับ/ค่ะ", fr:"Prends soin de toi.", es:"Cuídate."},
+  {en:"Let's go.", my:"သွားကြရအောင်။", zh:"我们走吧。", th:"ไปกันเถอะครับ/ค่ะ", fr:"Allons-y.", es:"Vamos."},
+  {en:"How are you?", my:"နေကောင်းလား။", zh:"你好吗？", th:"สบายดีไหมครับ/ค่ะ", fr:"Comment allez-vous ?", es:"¿Cómo estás?"},
+  {en:"I am fine.", my:"နေကောင်းပါတယ်။", zh:"我很好。", th:"สบายดีครับ/ค่ะ", fr:"Je vais bien.", es:"Estoy bien."},
+  {en:"I am tired.", my:"ငါပင်ပန်းနေတယ်။", zh:"我累了。", th:"ฉันเหนื่อยครับ/ค่ะ", fr:"Je suis fatigué.", es:"Estoy cansado."},
+  {en:"What is your name?", my:"နာမည်ဘယ်လိုခေါ်လဲ။", zh:"你叫什么名字？", th:"คุณชื่ออะไรครับ/ค่ะ", fr:"Comment vous appelez-vous ?", es:"¿Cómo te llamas?"},
+  {en:"Nice to meet you.", my:"တွေ့ရတာ ဝမ်းသာပါတယ်။", zh:"很高兴认识你。", th:"ยินดีที่ได้รู้จักครับ/ค่ะ", fr:"Enchanté de vous rencontrer.", es:"Mucho gusto."},
+  {en:"Where are you going?", my:"ဘယ်သွားမလို့လဲ။", zh:"你要去哪里？", th:"คุณจะไปไหนครับ/ค่ะ", fr:"Où allez-vous ?", es:"¿A dónde vas?"},
+  {en:"What did you eat today?", my:"ဒီနေ့ ဘာစားခဲ့လဲ။", zh:"你今天吃了什么？", th:"วันนี้คุณกินอะไรครับ/ค่ะ", fr:"Qu'avez-vous mangé aujourd'hui ?", es:"¿Qué comiste hoy?"},
+  {en:"What should we eat today?", my:"ဒီနေ့ ဘာစားရင်ကောင်းမလဲ။", zh:"我们今天吃什么好呢？", th:"วันนี้กินอะไรดีครับ/ค่ะ", fr:"Que devrions-nous manger aujourd'hui ?", es:"¿Qué deberíamos comer hoy?"},
+  {en:"I have a headache.", my:"ငါခေါင်းကိုက်နေတယ်။", zh:"我头疼。", th:"ฉันปวดหัวครับ/ค่ะ", fr:"J'ai mal à la tête.", es:"Me duele la cabeza."},
+  {en:"I feel sick.", my:"ငါနေမကောင်းဘူး။", zh:"我不舒服。", th:"ฉันรู้สึกไม่สบายครับ/ค่ะ", fr:"Je ne me sens pas bien.", es:"Me siento mal."},
+  {en:"Please call a doctor.", my:"ဆရာဝန်ကိုခေါ်ပေးပါ။", zh:"请叫医生。", th:"กรุณาเรียกหมอครับ/ค่ะ", fr:"Veuillez appeler un médecin.", es:"Por favor, llame a un médico."},
+  {en:"I don't have money.", my:"ငါ့မှာပိုက်ဆံမရှိဘူး။", zh:"我没有钱。", th:"ฉันไม่มีเงินครับ/ค่ะ", fr:"Je n'ai pas d'argent.", es:"No tengo dinero."},
+  {en:"How many people?", my:"ဘယ်နှစ်ယောက်ရှိလဲ။", zh:"有几个人？", th:"มีกี่คนครับ/ค่ะ", fr:"Combien de personnes ?", es:"¿Cuántas personas?"},
+  {en:"What time should I come?", my:"ဘယ်အချိန်လာရမလဲ။", zh:"我应该几点来？", th:"ควรมาตอนกี่โมงครับ/ค่ะ", fr:"À quelle heure dois-je venir ?", es:"¿A qué hora debo venir?"},
+  {en:"I will be late.", my:"ငါနောက်ကျမယ်။", zh:"我会迟到。", th:"ฉันจะไปสายครับ/ค่ะ", fr:"Je serai en retard.", es:"Llegaré tarde."},
+  {en:"I am on the way to work.", my:"အလုပ်ကို သွားနေပါတယ်။", zh:"我正在去上班的路上。", th:"ฉันกำลังไปทำงานครับ/ค่ะ", fr:"Je suis en route pour le travail.", es:"Voy camino al trabajo."},
+  {en:"Please explain how to do it.", my:"ဘယ်လိုလုပ်ရမလဲ ပြောပြပါဦး။", zh:"请解释一下怎么做。", th:"กรุณาอธิบายวิธีทำครับ/ค่ะ", fr:"Veuillez expliquer comment le faire.", es:"Por favor, explica cómo hacerlo."},
+  {en:"I don't know what to say.", my:"ဘာပြောရမှန်းတောင်မသိဘူး။", zh:"我不知道该说什么。", th:"ฉันไม่รู้จะพูดอะไรครับ/ค่ะ", fr:"Je ne sais pas quoi dire.", es:"No sé qué decir."},
+  {en:"Turn left.", my:"ဘယ်ဘက်ကွေ့ပါ။", zh:"向左转。", th:"เลี้ยวซ้ายครับ/ค่ะ", fr:"Tournez à gauche.", es:"Gire a la izquierda."},
+  {en:"Turn right.", my:"ညာဘက်ကွေ့ပါ။", zh:"向右转。", th:"เลี้ยวขวาครับ/ค่ะ", fr:"Tournez à droite.", es:"Gire a la derecha."},
+  {en:"Go straight.", my:"တည့်တည့်သွားပါ။", zh:"直走。", th:"ตรงไปครับ/ค่ะ", fr:"Allez tout droit.", es:"Siga derecho."},
+  {en:"Stop here.", my:"ဒီမှာရပ်ပါ။", zh:"停在这里。", th:"หยุดตรงนี้ครับ/ค่ะ", fr:"Arrêtez-vous ici.", es:"Deténgase aquí."},
+  {en:"I like it.", my:"ငါကြိုက်တယ်။", zh:"我喜欢。", th:"ฉันชอบครับ/ค่ะ", fr:"J'aime ça.", es:"Me gusta."},
+  {en:"I don't like it.", my:"ငါမကြိုက်ဘူး။", zh:"我不喜欢。", th:"ฉันไม่ชอบครับ/ค่ะ", fr:"Je n'aime pas ça.", es:"No me gusta."},
+  {en:"Is this okay?", my:"ဒါဖြစ်လား။", zh:"这样可以吗？", th:"แบบนี้ได้ไหมครับ/ค่ะ", fr:"Est-ce que ça va ?", es:"¿Está bien esto?"},
+  {en:"Everything is fine.", my:"အားလုံးအဆင်ပြေပါတယ်။", zh:"一切都好。", th:"ทุกอย่างเรียบร้อยดีครับ/ค่ะ", fr:"Tout va bien.", es:"Todo está bien."},
+  {en:"I need more time.", my:"ငါ့မှာအချိန်ပိုလိုအပ်တယ်။", zh:"我需要更多时间。", th:"ฉันต้องการเวลาเพิ่มครับ/ค่ะ", fr:"J'ai besoin de plus de temps.", es:"Necesito más tiempo."},
+  {en:"Let me think about it.", my:"စဉ်းစားကြည့်ရအောင်။", zh:"让我想一想。", th:"ขอคิดดูก่อนครับ/ค่ะ", fr:"Laissez-moi y réfléchir.", es:"Déjame pensarlo."},
+  {en:"I already finished it.", my:"ငါပြီးသွားပြီ။", zh:"我已经完成了。", th:"ฉันทำเสร็จแล้วครับ/ค่ะ", fr:"Je l'ai déjà terminé.", es:"Ya lo terminé."},
 ];
 
 const WORDS = [
-  {en:"I", my:"ငါ", zh:"我", th:"ฉัน"},
-  {en:"you", my:"နင်", zh:"你", th:"คุณ"},
-  {en:"we", my:"ငါတို့", zh:"我们", th:"เรา"},
-  {en:"he", my:"သူ", zh:"他", th:"เขา"},
-  {en:"today", my:"ဒီနေ့", zh:"今天", th:"วันนี้"},
-  {en:"tomorrow", my:"မနက်ဖြန်", zh:"明天", th:"พรุ่งนี้"},
-  {en:"yesterday", my:"မနေ့က", zh:"昨天", th:"เมื่อวาน"},
-  {en:"now", my:"အခု", zh:"现在", th:"ตอนนี้"},
-  {en:"later", my:"နောက်မှ", zh:"稍后", th:"ทีหลัง"},
-  {en:"good", my:"ကောင်းတယ်", zh:"好", th:"ดี"},
-  {en:"bad", my:"မကောင်းဘူး", zh:"不好", th:"ไม่ดี"},
-  {en:"big", my:"ကြီးတယ်", zh:"大", th:"ใหญ่"},
-  {en:"small", my:"သေးတယ်", zh:"小", th:"เล็ก"},
-  {en:"hot", my:"ပူတယ်", zh:"热", th:"ร้อน"},
-  {en:"cold", my:"အေးတယ်", zh:"冷", th:"หนาว"},
-  {en:"water", my:"ရေ", zh:"水", th:"น้ำ"},
-  {en:"food", my:"အစားအစာ", zh:"食物", th:"อาหาร"},
-  {en:"money", my:"ငွေ", zh:"钱", th:"เงิน"},
-  {en:"work", my:"အလုပ်", zh:"工作", th:"งาน"},
-  {en:"home", my:"အိမ်", zh:"家", th:"บ้าน"},
-  {en:"go", my:"သွားတယ်", zh:"去", th:"ไป"},
-  {en:"come", my:"လာတယ်", zh:"来", th:"มา"},
-  {en:"eat", my:"စားတယ်", zh:"吃", th:"กิน"},
-  {en:"drink", my:"သောက်တယ်", zh:"喝", th:"ดื่ม"},
-  {en:"sleep", my:"အိပ်တယ်", zh:"睡觉", th:"นอน"},
-  {en:"buy", my:"ဝယ်တယ်", zh:"买", th:"ซื้อ"},
-  {en:"sell", my:"ရောင်းတယ်", zh:"卖", th:"ขาย"},
-  {en:"open", my:"ဖွင့်တယ်", zh:"开", th:"เปิด"},
-  {en:"close", my:"ပိတ်တယ်", zh:"关", th:"ปิด"},
-  {en:"fast", my:"မြန်တယ်", zh:"快", th:"เร็ว"},
-  {en:"slow", my:"နှေးတယ်", zh:"慢", th:"ช้า"},
-  {en:"one", my:"တစ်", zh:"一", th:"หนึ่ง"},
-  {en:"two", my:"နှစ်", zh:"二", th:"สอง"},
-  {en:"three", my:"သုံး", zh:"三", th:"สาม"},
-  {en:"many", my:"များများ", zh:"很多", th:"เยอะ"},
-  {en:"here", my:"ဒီမှာ", zh:"这里", th:"ที่นี่"},
-  {en:"there", my:"အဲ့မှာ", zh:"那里", th:"ที่นั่น"},
-  {en:"what", my:"ဘာ", zh:"什么", th:"อะไร"},
-  {en:"who", my:"ဘယ်သူ", zh:"谁", th:"ใคร"},
-  {en:"why", my:"ဘာကြောင့်", zh:"为什么", th:"ทำไม"},
-  {en:"how", my:"ဘယ်လို", zh:"怎么", th:"อย่างไร"},
-  {en:"please", my:"ကျေးဇူးပြု၍", zh:"请", th:"กรุณา"},
-  {en:"thanks", my:"ကျေးဇူးတင်ပါတယ်", zh:"谢谢", th:"ขอบคุณ"},
-  {en:"sorry", my:"တောင်းပန်ပါတယ်", zh:"对不起", th:"ขอโทษ"},
-  {en:"yes", my:"ဟုတ်ကဲ့", zh:"是", th:"ใช่"},
-  {en:"no", my:"မဟုတ်ဘူး", zh:"不", th:"ไม่"},
-  {en:"want", my:"လိုချင်တယ်", zh:"想要", th:"ต้องการ"},
-  {en:"need", my:"လိုအပ်တယ်", zh:"需要", th:"จำเป็น"},
-  {en:"tired", my:"ပင်ပန်းတယ်", zh:"累", th:"เหนื่อย"},
-  {en:"happy", my:"ပျော်တယ်", zh:"开心", th:"มีความสุข"},
-  {en:"sad", my:"ဝမ်းနည်းတယ်", zh:"难过", th:"เศร้า"},
-  {en:"angry", my:"စိတ်ဆိုးတယ်", zh:"生气", th:"โกรธ"},
-  {en:"sick", my:"နေမကောင်းဘူး", zh:"生病", th:"ป่วย"},
-  {en:"friend", my:"သူငယ်ချင်း", zh:"朋友", th:"เพื่อน"},
-  {en:"family", my:"မိသားစု", zh:"家人", th:"ครอบครัว"},
-  {en:"time", my:"အချိန်", zh:"时间", th:"เวลา"},
-  {en:"day", my:"နေ့", zh:"天", th:"วัน"},
-  {en:"morning", my:"မနက်", zh:"早上", th:"เช้า"},
-  {en:"evening", my:"ညနေ", zh:"晚上", th:"เย็น"},
-  {en:"night", my:"ညဘက်", zh:"夜晚", th:"กลางคืน"},
-  {en:"finish", my:"ပြီးတယ်", zh:"完成", th:"เสร็จ"},
-  {en:"start", my:"စတယ်", zh:"开始", th:"เริ่ม"},
-  {en:"wait", my:"စောင့်တယ်", zh:"等", th:"รอ"},
-  {en:"help", my:"ကူညီတယ်", zh:"帮助", th:"ช่วยเหลือ"},
-  {en:"problem", my:"ပြဿနာ", zh:"问题", th:"ปัญหา"},
-  {en:"correct", my:"မှန်တယ်", zh:"正确", th:"ถูกต้อง"},
-  {en:"wrong", my:"မှားတယ်", zh:"错误", th:"ผิด"},
+  {en:"I", my:"ငါ", zh:"我", th:"ฉัน", fr:"je", es:"yo"},
+  {en:"you", my:"နင်", zh:"你", th:"คุณ", fr:"tu", es:"tú"},
+  {en:"we", my:"ငါတို့", zh:"我们", th:"เรา", fr:"nous", es:"nosotros"},
+  {en:"he", my:"သူ", zh:"他", th:"เขา", fr:"il", es:"él"},
+  {en:"today", my:"ဒီနေ့", zh:"今天", th:"วันนี้", fr:"aujourd'hui", es:"hoy"},
+  {en:"tomorrow", my:"မနက်ဖြန်", zh:"明天", th:"พรุ่งนี้", fr:"demain", es:"mañana"},
+  {en:"yesterday", my:"မနေ့က", zh:"昨天", th:"เมื่อวาน", fr:"hier", es:"ayer"},
+  {en:"now", my:"အခု", zh:"现在", th:"ตอนนี้", fr:"maintenant", es:"ahora"},
+  {en:"later", my:"နောက်မှ", zh:"稍后", th:"ทีหลัง", fr:"plus tard", es:"más tarde"},
+  {en:"good", my:"ကောင်းတယ်", zh:"好", th:"ดี", fr:"bon", es:"bueno"},
+  {en:"bad", my:"မကောင်းဘူး", zh:"不好", th:"ไม่ดี", fr:"mauvais", es:"malo"},
+  {en:"big", my:"ကြီးတယ်", zh:"大", th:"ใหญ่", fr:"grand", es:"grande"},
+  {en:"small", my:"သေးတယ်", zh:"小", th:"เล็ก", fr:"petit", es:"pequeño"},
+  {en:"hot", my:"ပူတယ်", zh:"热", th:"ร้อน", fr:"chaud", es:"caliente"},
+  {en:"cold", my:"အေးတယ်", zh:"冷", th:"หนาว", fr:"froid", es:"frío"},
+  {en:"water", my:"ရေ", zh:"水", th:"น้ำ", fr:"eau", es:"agua"},
+  {en:"food", my:"အစားအစာ", zh:"食物", th:"อาหาร", fr:"nourriture", es:"comida"},
+  {en:"money", my:"ငွေ", zh:"钱", th:"เงิน", fr:"argent", es:"dinero"},
+  {en:"work", my:"အလုပ်", zh:"工作", th:"งาน", fr:"travail", es:"trabajo"},
+  {en:"home", my:"အိမ်", zh:"家", th:"บ้าน", fr:"maison", es:"casa"},
+  {en:"go", my:"သွားတယ်", zh:"去", th:"ไป", fr:"aller", es:"ir"},
+  {en:"come", my:"လာတယ်", zh:"来", th:"มา", fr:"venir", es:"venir"},
+  {en:"eat", my:"စားတယ်", zh:"吃", th:"กิน", fr:"manger", es:"comer"},
+  {en:"drink", my:"သောက်တယ်", zh:"喝", th:"ดื่ม", fr:"boire", es:"beber"},
+  {en:"sleep", my:"အိပ်တယ်", zh:"睡觉", th:"นอน", fr:"dormir", es:"dormir"},
+  {en:"buy", my:"ဝယ်တယ်", zh:"买", th:"ซื้อ", fr:"acheter", es:"comprar"},
+  {en:"sell", my:"ရောင်းတယ်", zh:"卖", th:"ขาย", fr:"vendre", es:"vender"},
+  {en:"open", my:"ဖွင့်တယ်", zh:"开", th:"เปิด", fr:"ouvrir", es:"abrir"},
+  {en:"close", my:"ပိတ်တယ်", zh:"关", th:"ปิด", fr:"fermer", es:"cerrar"},
+  {en:"fast", my:"မြန်တယ်", zh:"快", th:"เร็ว", fr:"rapide", es:"rápido"},
+  {en:"slow", my:"နှေးတယ်", zh:"慢", th:"ช้า", fr:"lent", es:"lento"},
+  {en:"one", my:"တစ်", zh:"一", th:"หนึ่ง", fr:"un", es:"uno"},
+  {en:"two", my:"နှစ်", zh:"二", th:"สอง", fr:"deux", es:"dos"},
+  {en:"three", my:"သုံး", zh:"三", th:"สาม", fr:"trois", es:"tres"},
+  {en:"many", my:"များများ", zh:"很多", th:"เยอะ", fr:"beaucoup", es:"muchos"},
+  {en:"here", my:"ဒီမှာ", zh:"这里", th:"ที่นี่", fr:"ici", es:"aquí"},
+  {en:"there", my:"အဲ့မှာ", zh:"那里", th:"ที่นั่น", fr:"là-bas", es:"allí"},
+  {en:"what", my:"ဘာ", zh:"什么", th:"อะไร", fr:"quoi", es:"qué"},
+  {en:"who", my:"ဘယ်သူ", zh:"谁", th:"ใคร", fr:"qui", es:"quién"},
+  {en:"why", my:"ဘာကြောင့်", zh:"为什么", th:"ทำไม", fr:"pourquoi", es:"por qué"},
+  {en:"how", my:"ဘယ်လို", zh:"怎么", th:"อย่างไร", fr:"comment", es:"cómo"},
+  {en:"please", my:"ကျေးဇူးပြု၍", zh:"请", th:"กรุณา", fr:"s'il vous plaît", es:"por favor"},
+  {en:"thanks", my:"ကျေးဇူးတင်ပါတယ်", zh:"谢谢", th:"ขอบคุณ", fr:"merci", es:"gracias"},
+  {en:"sorry", my:"တောင်းပန်ပါတယ်", zh:"对不起", th:"ขอโทษ", fr:"désolé", es:"lo siento"},
+  {en:"yes", my:"ဟုတ်ကဲ့", zh:"是", th:"ใช่", fr:"oui", es:"sí"},
+  {en:"no", my:"မဟုတ်ဘူး", zh:"不", th:"ไม่", fr:"non", es:"no"},
+  {en:"want", my:"လိုချင်တယ်", zh:"想要", th:"ต้องการ", fr:"vouloir", es:"querer"},
+  {en:"need", my:"လိုအပ်တယ်", zh:"需要", th:"จำเป็น", fr:"avoir besoin", es:"necesitar"},
+  {en:"tired", my:"ပင်ပန်းတယ်", zh:"累", th:"เหนื่อย", fr:"fatigué", es:"cansado"},
+  {en:"happy", my:"ပျော်တယ်", zh:"开心", th:"มีความสุข", fr:"heureux", es:"feliz"},
+  {en:"sad", my:"ဝမ်းနည်းတယ်", zh:"难过", th:"เศร้า", fr:"triste", es:"triste"},
+  {en:"angry", my:"စိတ်ဆိုးတယ်", zh:"生气", th:"โกรธ", fr:"en colère", es:"enojado"},
+  {en:"sick", my:"နေမကောင်းဘူး", zh:"生病", th:"ป่วย", fr:"malade", es:"enfermo"},
+  {en:"friend", my:"သူငယ်ချင်း", zh:"朋友", th:"เพื่อน", fr:"ami", es:"amigo"},
+  {en:"family", my:"မိသားစု", zh:"家人", th:"ครอบครัว", fr:"famille", es:"familia"},
+  {en:"time", my:"အချိန်", zh:"时间", th:"เวลา", fr:"temps", es:"tiempo"},
+  {en:"day", my:"နေ့", zh:"天", th:"วัน", fr:"jour", es:"día"},
+  {en:"morning", my:"မနက်", zh:"早上", th:"เช้า", fr:"matin", es:"mañana"},
+  {en:"evening", my:"ညနေ", zh:"晚上", th:"เย็น", fr:"soir", es:"tarde"},
+  {en:"night", my:"ညဘက်", zh:"夜晚", th:"กลางคืน", fr:"nuit", es:"noche"},
+  {en:"finish", my:"ပြီးတယ်", zh:"完成", th:"เสร็จ", fr:"finir", es:"terminar"},
+  {en:"start", my:"စတယ်", zh:"开始", th:"เริ่ม", fr:"commencer", es:"empezar"},
+  {en:"wait", my:"စောင့်တယ်", zh:"等", th:"รอ", fr:"attendre", es:"esperar"},
+  {en:"help", my:"ကူညီတယ်", zh:"帮助", th:"ช่วยเหลือ", fr:"aider", es:"ayudar"},
+  {en:"problem", my:"ပြဿနာ", zh:"问题", th:"ปัญหา", fr:"problème", es:"problema"},
+  {en:"correct", my:"မှန်တယ်", zh:"正确", th:"ถูกต้อง", fr:"correct", es:"correcto"},
+  {en:"wrong", my:"မှားတယ်", zh:"错误", th:"ผิด", fr:"faux", es:"incorrecto"},
 ];
 
 /**
@@ -924,6 +1094,10 @@ const state = {
   tone: 'neutral',
   glossary: '',
   saveHistory: false,
+  voiceEngine: 'auto',
+  holdToTalk: false,
+  backendMode: 'key',
+  proxyUrl: '',
 };
 
 function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
@@ -987,7 +1161,10 @@ function startStt(side){
   };
   // Auto-stop as soon as the browser detects the person paused speaking —
   // no need to hold the button, this makes back-and-forth chat much faster.
-  recognition.onspeechend = () => { try{ recognition.stop(); }catch(e){} };
+  // (Skipped in Hold-to-Talk mode, where releasing the button is what stops it.)
+  recognition.onspeechend = () => {
+    if(!state.holdToTalk){ try{ recognition.stop(); }catch(e){} }
+  };
   recognition.onend = () => { stopStt(); };
 
   try{ recognition.start(); } catch(e){ stopStt(); }
@@ -1057,26 +1234,55 @@ function pcmBase64ToWavBlob(base64, sampleRate){
   return new Blob([header, pcmBytes], { type: 'audio/wav' });
 }
 
+/**
+ * All Gemini calls go through this helper. In 'key' mode (default, current
+ * behavior) it calls Google directly with the key stored on this device.
+ * In 'proxy' mode it calls YOUR OWN backend (e.g. a Cloudflare Worker) which
+ * holds the real API key server-side — the key never touches the client at
+ * all, which is required before distributing this as a public APK/app.
+ */
+function hasBackend(){
+  if(state.backendMode === 'proxy') return !!state.proxyUrl;
+  return !!state.apiKey;
+}
+
+async function geminiFetch(model, payload){
+  if(state.backendMode === 'proxy' && state.proxyUrl){
+    return fetch(state.proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, payload }),
+    });
+  }
+  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': state.apiKey,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function speakViaGemini(text, onDone){
   try{
     let url = ttsAudioCache.get(text);
     if(!url){
-      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': state.apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Say naturally and clearly: ${text}` }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
-          }
-        })
+      const resp = await geminiFetch('gemini-3.1-flash-tts-preview', {
+        contents: [{ parts: [{ text: text }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          maxOutputTokens: 8192,
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
+        }
       });
       if(!resp.ok) throw new Error('TTS API ' + resp.status);
       const data = await resp.json();
+      const finishReason = data?.candidates?.[0]?.finishReason;
+      if(finishReason === 'MAX_TOKENS'){
+        console.error('Gemini TTS truncated (MAX_TOKENS) for text length', text.length);
+        throw new Error('TTS truncated — text too long for one request');
+      }
       const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
       const inline = part?.inlineData || part?.inline_data;
       if(!inline?.data) throw new Error('No audio in TTS response');
@@ -1127,13 +1333,29 @@ async function speak(text, lang, onDone){
   if(!text){ if(onDone) onDone(); return; }
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
 
-  // Gemini's TTS reliably supports Myanmar and other languages that many
-  // Android devices don't ship a built-in voice for. Use it first whenever
-  // we're online with an API key; only fall back to the device voice
-  // (faster, offline-capable, but often missing Myanmar) if that fails.
-  if(!state.offlineForced && state.apiKey){
+  // Voice Engine preference (Settings): 'device' forces the phone's built-in
+  // voice only; 'ai' forces Gemini's voice only; 'auto' (default) tries
+  // Gemini first — since it reliably supports Myanmar and other languages
+  // many Android devices don't ship a voice for — and falls back to the
+  // device voice only if that fails.
+  const engine = state.voiceEngine || 'auto';
+
+  if(engine === 'device'){
+    speakLocal(text, lang, onDone);
+    return;
+  }
+
+  const canUseAi = !state.offlineForced && hasBackend();
+  if(engine === 'ai' && !canUseAi){
+    showToast('AI Voice အတွက် Internet/API Key လိုအပ်ပါတယ် — device voice ကို ယာယီသုံးပါမယ်', 'warn');
+  }
+
+  if(canUseAi){
     const ok = await speakViaGemini(text, onDone);
     if(ok) return;
+    if(engine === 'ai'){
+      showToast('AI Voice မရနိုင်ပါ — device voice ကို ယာယီသုံးပါမယ်', 'warn');
+    }
   }
   speakLocal(text, lang, onDone);
 }
@@ -1218,7 +1440,7 @@ async function handleTranslation(rawText, sender, isVoice){
     else { translated = `${prefix} ${rawText}`; approx = true; }
   }
 
-  if(state.offlineForced || !state.apiKey){
+  if(state.offlineForced || !hasBackend()){
     await fallbackOffline('[Offline]');
   } else {
     try{
@@ -1238,20 +1460,13 @@ async function handleTranslation(rawText, sender, isVoice){
         + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
         + `Message to translate now: "${rawText}"`;
 
-      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': state.apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 2048,
-            thinkingConfig: { thinkingLevel: 'low' }
-          }
-        })
+      const resp = await geminiFetch('gemini-3.5-flash', {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingLevel: 'low' }
+        }
       });
 
       if(resp.ok){
@@ -1332,7 +1547,7 @@ async function scanAndTranslate(file, side){
   const sourceLang = isA ? state.langA : state.langB;
   const targetLang = isA ? state.langB : state.langA;
 
-  if(state.offlineForced || !state.apiKey){
+  if(state.offlineForced || !hasBackend()){
     showToast('Scan feature အတွက် AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။', 'warn');
     return;
   }
@@ -1364,25 +1579,18 @@ async function scanAndTranslate(file, side){
       + `ORIGINAL: <the text you read from the image>\n`
       + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
 
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': state.apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 2048,
-          thinkingConfig: { thinkingLevel: 'low' }
-        }
-      })
+    const resp = await geminiFetch('gemini-3.5-flash', {
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+        thinkingConfig: { thinkingLevel: 'low' }
+      }
     });
 
     if(!resp.ok){
@@ -1456,6 +1664,7 @@ function svgPlay(){return `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></s
 function svgCopy(){return `<svg viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>`;}
 function svgCheck(){return `<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>`;}
 function svgVerify(){return `<svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>`;}
+function svgBook(){return `<svg viewBox="0 0 24 24"><path fill="#fff" d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H6V4h5v8l2.5-1.5L16 12V4h2v16z"/></svg>`;}
 function svgTranslate(){return `<svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.05 4.98L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>`;}
 function svgCamera(){return `<svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2l-1.83 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>`;}
 
@@ -1482,7 +1691,7 @@ function renderPanel(side){
         <div class="label">${isA ? 'Colleague Perspective' : 'My Perspective'}</div>
       </div>
       <select class="langSelect" id="select${side}">
-        ${LANGUAGES.map(l => `<option value="${l.code}" ${l.code===currentLang.code?'selected':''} ${l.code===otherLang.code?'disabled':''}>${l.flag} ${l.name}</option>`).join('')}
+        ${LANGUAGES.map(l => `<option value="${l.code}" ${l.code===currentLang.code?'selected':''} ${l.code===otherLang.code?'disabled':''}>${langOptionLabel(l)}</option>`).join('')}
       </select>
     </div>
     <div class="chatLog" id="chatLog${side}"></div>
@@ -1492,7 +1701,8 @@ function renderPanel(side){
         <button class="sendBtn" id="sendBtn${side}" aria-label="Send and translate">${svgSend()}</button>
       </div>
       <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo" aria-label="Scan a photo to translate">${svgCamera()}</button>
-      <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="Tap to talk, auto-stops when you pause" aria-label="Speak to translate">
+      <button class="camBtn" id="phrasebook${side}" title="Quick phrasebook — emergency, medical, work, housing" aria-label="Open quick phrasebook">${svgBook()}</button>
+      <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="${state.holdToTalk ? 'Hold to talk, release to translate' : 'Tap to talk, auto-stops when you pause'}" aria-label="${state.holdToTalk ? 'Hold to talk' : 'Speak to translate'}">
         ${isTranslating ? '<div class="spinner"></div>' : svgMic()}
       </button>
     </div>
@@ -1515,7 +1725,28 @@ function renderPanel(side){
   });
 
   const micBtn = document.getElementById('mic'+side);
+  let micHoldActive = false;
+  micBtn.addEventListener('pointerdown', (e)=>{
+    if(!state.holdToTalk) return;
+    e.preventDefault();
+    if(isTranslating) return;
+    micHoldActive = true;
+    vibrate(15);
+    startStt(side);
+  });
+  micBtn.addEventListener('pointerup', ()=>{
+    if(!state.holdToTalk || !micHoldActive) return;
+    micHoldActive = false;
+    vibrate(10);
+    stopSttManual();
+  });
+  micBtn.addEventListener('pointercancel', ()=>{
+    if(!state.holdToTalk || !micHoldActive) return;
+    micHoldActive = false;
+    stopSttManual();
+  });
   micBtn.addEventListener('click', (e)=>{
+    if(state.holdToTalk) return; // hold-to-talk mode uses pointerdown/up above instead
     e.preventDefault();
     if(isTranslating) return;
     if(state.listening[side]){ stopSttManual(); }
@@ -1528,6 +1759,12 @@ function renderPanel(side){
     if(isTranslating) return;
     currentScanSide = side;
     document.getElementById('scanInput').click();
+  });
+
+  const phrasebookBtn = document.getElementById('phrasebook'+side);
+  phrasebookBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    pbOpen(side);
   });
 }
 
@@ -1600,7 +1837,7 @@ function playBlock(text, side){
 }
 
 async function verifyBlock(msgId, text, fromSide, toSide, btnEl){
-  if(state.offlineForced || !state.apiKey){
+  if(state.offlineForced || !hasBackend()){
     showToast('Verify feature အတွက် AI Translation Key လိုအပ်ပါတယ်', 'warn');
     return;
   }
@@ -1615,13 +1852,9 @@ async function verifyBlock(msgId, text, fromSide, toSide, btnEl){
     const prompt = `Translate the following ${fromLang.name} text into ${toLang.name} as literally and accurately as possible `
       + `(this is for a back-translation accuracy check, not for natural conversation — precision matters more than fluency here). `
       + `Return ONLY the translation, nothing else.\n\nText: "${text}"`;
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } }
-      })
+    const resp = await geminiFetch('gemini-3.5-flash', {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } }
     });
     if(resp.ok){
       const data = await resp.json();
@@ -1683,7 +1916,7 @@ function escapeHtml(str){
 function renderStatusBar(){
   const bar = document.getElementById('statusBar');
   const text = document.getElementById('statusText');
-  const online = !state.offlineForced && !!state.apiKey;
+  const online = !state.offlineForced && hasBackend();
   bar.classList.toggle('online', online);
   text.textContent = online
     ? 'Live Translation Active'
@@ -1718,424 +1951,28 @@ document.getElementById('autoBtn').addEventListener('click', ()=>{
    SETTINGS MODAL
 ========================================================= */
 const overlay = document.getElementById('modalOverlay');
-document.getElementById('settingsBtn').addEventListener('click', ()=>{
-  document.getElementById('apiKeyInput').value = state.apiKey;
-  document.getElementById('offlineToggle').checked = state.offlineForced;
-  document.getElementById('autoSpeakToggle').checked = state.autoSpeak;
-  document.getElementById('showTranslatedOutToggle').checked = state.showTranslatedOut;
-  document.getElementById('lightThemeToggle').checked = state.lightTheme;
-  document.getElementById('saveHistoryToggle').checked = state.saveHistory;
-  document.getElementById('glossaryInput').value = state.glossary;
-  document.getElementById('versionFooter').textContent = 'Walkie-Talkie Translator · v' + APP_VERSION;
-  document.querySelectorAll('#speedRow .speedBtn').forEach(btn => {
-    btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.speechRate);
-  });
-  document.querySelectorAll('#toneRow .speedBtn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tone === state.tone);
-  });
-  overlay.classList.add('show');
-});
-document.querySelectorAll('.speedBtn').forEach(btn => {
-  btn.addEventListener('click', ()=>{
-    const row = btn.closest('.speedRow');
-    row.querySelectorAll('.speedBtn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  });
-});
-document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.classList.remove('show'));
-document.getElementById('clearHistoryBtn').addEventListener('click', ()=>{
-  state.messages = [];
-  try{ localStorage.removeItem('wt_messages'); }catch(e){}
-  renderPanel('A'); renderPanel('B');
-  showToast('Conversation history ကို ရှင်းလိုက်ပါပြီ။');
-});
-document.getElementById('applyBtn').addEventListener('click', ()=>{
-  state.apiKey = document.getElementById('apiKeyInput').value.trim();
-  state.offlineForced = document.getElementById('offlineToggle').checked;
-  state.autoSpeak = document.getElementById('autoSpeakToggle').checked;
-  state.showTranslatedOut = document.getElementById('showTranslatedOutToggle').checked;
-  state.lightTheme = document.getElementById('lightThemeToggle').checked;
-  state.saveHistory = document.getElementById('saveHistoryToggle').checked;
-  state.glossary = document.getElementById('glossaryInput').value.trim();
-  document.body.classList.toggle('light-theme', state.lightTheme);
-  const activeSpeedBtn = document.querySelector('#speedRow .speedBtn.active');
-  if(activeSpeedBtn) state.speechRate = parseFloat(activeSpeedBtn.dataset.rate);
-  const activeToneBtn = document.querySelector('#toneRow .speedBtn.active');
-  if(activeToneBtn) state.tone = activeToneBtn.dataset.tone;
-  try{
-    localStorage.setItem('wt_apiKey', state.apiKey);
-    localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
-    localStorage.setItem('wt_speechRate', String(state.speechRate));
-    localStorage.setItem('wt_autoSpeak', state.autoSpeak ? '1' : '0');
-    localStorage.setItem('wt_showTranslatedOut', state.showTranslatedOut ? '1' : '0');
-    localStorage.setItem('wt_lightTheme', state.lightTheme ? '1' : '0');
-    localStorage.setItem('wt_tone', state.tone);
-    localStorage.setItem('wt_glossary', state.glossary);
-    localStorage.setItem('wt_saveHistory', state.saveHistory ? '1' : '0');
-    if(state.saveHistory){
-      localStorage.setItem('wt_messages', JSON.stringify(state.messages.slice(0, 200)));
-    } else {
-      localStorage.removeItem('wt_messages');
-    }
-  }catch(e){ /* storage unavailable — settings just won't persist */ }
-  overlay.classList.remove('show');
-  renderStatusBar();
-  renderPanel('A'); renderPanel('B');
-  showToast('Settings သိမ်းပြီးပါပြီ။');
-});
-overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
-
-/* =========================================================
-   QUICK TRANSLATE (one-way: paste text / scan photo / voice,
-   translate whatever it is into a language YOU choose — not
-   part of the two-person Walkie-Talkie conversation)
-========================================================= */
-state.qtTargetCode = 'en';
-state.qtMicCode = 'my';
-state.qtHistory = [];
-
-function qtPopulateSelects(){
-  const targetSel = document.getElementById('qtTargetLang');
-  const micSel = document.getElementById('qtMicLang');
-  targetSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
-  micSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
-  targetSel.value = state.qtTargetCode;
-  micSel.value = state.qtMicCode;
-}
-
-document.querySelectorAll('.modeTab').forEach(tab => {
+document.querySelectorAll('.settingsTab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.modeTab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.settingsTab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    const mode = tab.dataset.mode;
-    const isQuick = mode === 'quick';
-    document.getElementById('panelA').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('divider').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('panelB').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('quickPanel').style.display = isQuick ? 'flex' : 'none';
-  });
-});
-
-document.getElementById('qtTargetLang').addEventListener('change', (e) => { state.qtTargetCode = e.target.value; });
-document.getElementById('qtMicLang').addEventListener('change', (e) => { state.qtMicCode = e.target.value; });
-
-function qtRenderHistory(){
-  const el = document.getElementById('qtHistory');
-  if(!state.qtHistory.length){
-    el.innerHTML = '<div class="qtEmpty">မသိတဲ့ စာသားကို ကူးထည့်ပါ၊ ဓာတ်ပုံရိုက်ပါ၊<br>သို့မဟုတ် အသံနဲ့ မေးပါ — AI က ရွေးထားတဲ့ဘာသာစကားသို့ တိကျစွာ ပြန်ပေးပါလိမ့်မယ်။</div>';
-    return;
-  }
-  el.innerHTML = state.qtHistory.map(item => `
-    <div class="qtCard">
-      ${item.pending ? `
-        <div class="qtOriginal">${escapeHtml(item.queryLabel || item.originalText || '')}</div>
-        <hr>
-        <div class="qtTranslation"><span class="dotFlicker">translating…</span></div>
-      ` : `
-        <div class="qtBadges">
-          ${item.detectedLang ? `<span class="qtDetected">Detected: ${escapeHtml(item.detectedLang)}</span>` : ''}
-          ${item.usedOffline ? (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
-        </div>
-        <div class="qtOriginal">${escapeHtml(item.originalText)}</div>
-        <div class="miniControls">
-          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.originalText)}, this)'>${svgCopy()}</button>
-        </div>
-        <hr>
-        <div class="qtTranslation">${escapeHtml(item.translatedText)}</div>
-        <div class="miniControls">
-          <button class="iconBtn" title="Play" onclick='qtPlay(${item.id})'>${svgPlay()}</button>
-          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.translatedText)}, this)'>${svgCopy()}</button>
-        </div>
-      `}
-    </div>
-  `).join('');
-}
-
-function qtPlay(id){
-  const item = state.qtHistory.find(i => i.id === id);
-  if(!item || !item.translatedText) return;
-  const lang = langByCode(state.qtTargetCode) || LANGUAGES[0];
-  speak(item.translatedText, lang);
-}
-
-async function qtTranslate(rawText, queryLabel){
-  rawText = (rawText || '').trim();
-  if(!rawText) return;
-  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
-
-  const id = Date.now().toString();
-  state.qtHistory.unshift({ id, pending: true, queryLabel: queryLabel || rawText });
-  qtRenderHistory();
-
-  let translatedText = '';
-  let detectedLang = '';
-  let usedOffline = false;
-  let approx = false;
-
-  if(state.offlineForced || !state.apiKey){
-    usedOffline = true;
-    const remembered = tmLookup('auto', targetLang.code, rawText);
-    if(remembered){
-      translatedText = remembered;
-      approx = false;
-    } else {
-      // Heuristic: try the offline dictionary assuming each known language
-      // as the possible source, since we don't know what this text is.
-      let found = null;
-      for(const l of LANGUAGES){
-        if(l.code === targetLang.code) continue;
-        const off = offlineTranslate(rawText, l.code, targetLang.code);
-        if(off){ found = off; break; }
-      }
-      if(found){ translatedText = found.text; approx = found.approx; }
-      else { translatedText = `[Offline] ${rawText}`; approx = true; }
-    }
-  } else {
-    try{
-      const prompt = `Detect the language of the following message and translate it into ${targetLang.name}. `
-        + `Understand the full meaning first, then translate naturally the way a native ${targetLang.name} speaker would say it — not word-for-word.\n\n`
-        + `Tone: ${toneInstruction()}\n`
-        + `${glossaryInstruction()}`
-        + `\nRespond in EXACTLY this format, nothing else:\n`
-        + `LANG: <name of the detected source language>\n`
-        + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
-        + `Message: "${rawText}"`;
-
-      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
-        })
-      });
-
-      if(resp.ok){
-        const data = await resp.json();
-        const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
-        const langMatch = raw.match(/LANG:\s*(.*)/i);
-        const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
-        detectedLang = langMatch ? langMatch[1].trim() : '';
-        translatedText = transMatch ? transMatch[1].trim() : raw;
-        if(translatedText){
-          tmSave('auto', targetLang.code, rawText, translatedText);
-        } else {
-          usedOffline = true; approx = true; translatedText = `[Empty response] ${rawText}`;
-        }
-      } else {
-        usedOffline = true; approx = true; translatedText = `[Network Error] ${rawText}`;
-      }
-    } catch(e){
-      usedOffline = true; approx = true; translatedText = `[Error Connection] ${rawText}`;
-    }
-  }
-
-  const item = state.qtHistory.find(i => i.id === id);
-  if(item){
-    Object.assign(item, {
-      pending: false, originalText: rawText, translatedText, detectedLang, usedOffline, approx
+    const target = tab.dataset.tab;
+    document.querySelectorAll('.settingsPane').forEach(pane => {
+      pane.style.display = pane.dataset.pane === target ? 'block' : 'none';
     });
-  }
-  qtRenderHistory();
-  if(state.autoSpeak) speak(translatedText, targetLang);
-}
-
-document.getElementById('qtSendBtn').addEventListener('click', () => {
-  const input = document.getElementById('qtInput');
-  const text = input.value.trim();
-  if(!text) return;
-  input.value = '';
-  input.style.height = 'auto';
-  qtTranslate(text);
-});
-document.getElementById('qtInput').addEventListener('input', (e) => {
-  e.target.style.height = 'auto';
-  e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px';
-});
-document.getElementById('qtInput').addEventListener('keydown', (e) => {
-  if(e.key === 'Enter' && !e.shiftKey){
-    e.preventDefault();
-    document.getElementById('qtSendBtn').click();
-  }
-});
-
-document.getElementById('qtCamBtn').addEventListener('click', () => {
-  document.getElementById('qtScanInput').click();
-});
-document.getElementById('qtScanInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if(!file) return;
-  await qtScanAndTranslate(file);
-});
-
-async function qtScanAndTranslate(file){
-  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
-  if(state.offlineForced || !state.apiKey){
-    showToast('Scan feature အတွက် AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။', 'warn');
-    return;
-  }
-  const id = Date.now().toString();
-  state.qtHistory.unshift({ id, pending: true, queryLabel: '(scanning photo…)' });
-  qtRenderHistory();
-
-  try{
-    const base64 = await fileToBase64(file);
-    const prompt = `Read all the text visible in this image (any language). Detect its language, then translate it into ${targetLang.name}, `
-      + `understanding the full meaning naturally rather than word-for-word.\n\n`
-      + `Tone: ${toneInstruction()}\n`
-      + `${glossaryInstruction()}`
-      + `\nRespond in EXACTLY this format, nothing else:\n`
-      + `LANG: <name of the detected source language>\n`
-      + `ORIGINAL: <the text you read from the image>\n`
-      + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
-
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [
-          { text: prompt },
-          { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
-        ] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
-      })
-    });
-
-    if(!resp.ok){
-      let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
-      console.error('QT scan API error:', resp.status, bodyText);
-      showToast(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`, 'error');
-      state.qtHistory = state.qtHistory.filter(i => i.id !== id);
-      qtRenderHistory();
-      return;
-    }
-
-    const data = await resp.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
-    const langMatch = raw.match(/LANG:\s*(.*)/i);
-    const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATION:/i);
-    const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
-    const detectedLang = langMatch ? langMatch[1].trim() : '';
-    const originalText = origMatch ? origMatch[1].trim() : '(scanned image)';
-    const translatedText = transMatch ? transMatch[1].trim() : raw;
-
-    const item = state.qtHistory.find(i => i.id === id);
-    if(item){
-      Object.assign(item, { pending: false, originalText, translatedText, detectedLang, usedOffline: false, approx: false });
-    }
-    if(originalText) tmSave('auto', targetLang.code, originalText, translatedText);
-    qtRenderHistory();
-    if(state.autoSpeak) speak(translatedText, targetLang);
-  } catch(e){
-    console.error('QT scan failed:', e);
-    showToast(`Scan translation အမှားဖြစ်သွားပါတယ်: ${e.message}`, 'error');
-    state.qtHistory = state.qtHistory.filter(i => i.id !== id);
-    qtRenderHistory();
-  }
-}
-
-let qtRecognition = null;
-document.getElementById('qtMicBtn').addEventListener('click', () => {
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SpeechRecognitionCtor){
-    showToast('ဒီ browser မှာ voice input ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။', 'error');
-    return;
-  }
-  const micBtn = document.getElementById('qtMicBtn');
-  if(qtRecognition){
-    try{ qtRecognition.stop(); }catch(e){}
-    qtRecognition = null;
-    micBtn.classList.remove('listening');
-    return;
-  }
-  const micLang = langByCode(state.qtMicCode) || LANGUAGES[0];
-  qtRecognition = new SpeechRecognitionCtor();
-  qtRecognition.lang = micLang.ttsLocale;
-  qtRecognition.interimResults = false;
-  qtRecognition.maxAlternatives = 1;
-  micBtn.classList.add('listening');
-
-  qtRecognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    if(text && text.trim()) qtTranslate(text, `🎙️ ${text}`);
-  };
-  qtRecognition.onerror = (e) => {
-    if(e.error !== 'no-speech' && e.error !== 'aborted'){
-      showToast('Voice input အမှားဖြစ်သွားပါတယ်: ' + e.error, 'error');
-    }
-  };
-  qtRecognition.onspeechend = () => { try{ qtRecognition.stop(); }catch(e){} };
-  qtRecognition.onend = () => { qtRecognition = null; micBtn.classList.remove('listening'); };
-
-  try{ qtRecognition.start(); } catch(e){ qtRecognition = null; micBtn.classList.remove('listening'); }
-});
-
-qtPopulateSelects();
-qtRenderHistory();
-
-/* =========================================================
-   INIT
-========================================================= */
-try{
-  const savedKey = localStorage.getItem('wt_apiKey');
-  const savedOffline = localStorage.getItem('wt_offlineForced');
-  const savedRate = localStorage.getItem('wt_speechRate');
-  const savedAutoSpeak = localStorage.getItem('wt_autoSpeak');
-  const savedShowSub = localStorage.getItem('wt_showTranslatedOut');
-  const savedTheme = localStorage.getItem('wt_lightTheme');
-  const savedTone = localStorage.getItem('wt_tone');
-  const savedGlossary = localStorage.getItem('wt_glossary');
-  const savedSaveHistory = localStorage.getItem('wt_saveHistory');
-  if(savedKey) state.apiKey = savedKey;
-  if(savedOffline !== null) state.offlineForced = savedOffline === '1';
-  if(savedRate) state.speechRate = parseFloat(savedRate);
-  if(savedAutoSpeak !== null) state.autoSpeak = savedAutoSpeak === '1';
-  if(savedShowSub !== null) state.showTranslatedOut = savedShowSub === '1';
-  if(savedTheme === '1'){ state.lightTheme = true; document.body.classList.add('light-theme'); }
-  if(savedTone) state.tone = savedTone;
-  if(savedGlossary) state.glossary = savedGlossary;
-  if(savedSaveHistory !== null) state.saveHistory = savedSaveHistory === '1';
-
-  if(state.saveHistory){
-    const savedMsgs = localStorage.getItem('wt_messages');
-    if(savedMsgs) state.messages = JSON.parse(savedMsgs);
-  }
-}catch(e){ /* storage unavailable — falls back to blank each launch */ }
-
-renderStatusBar();
-renderPanel('A');
-renderPanel('B');
-
-// First-launch onboarding: explain the rotated face-to-face panel design.
-try{
-  if(!localStorage.getItem('wt_onboardingSeen')){
-    document.getElementById('onboardingOverlay').classList.add('show');
-  }
-}catch(e){}
-document.getElementById('onboardingCloseBtn').addEventListener('click', ()=>{
-  document.getElementById('onboardingOverlay').classList.remove('show');
-  try{ localStorage.setItem('wt_onboardingSeen', '1'); }catch(e){}
-});
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').then((reg) => {
-      // Check for a newer service-worker.js every time the app opens.
-      reg.update().catch(()=>{});
-    }).catch(()=>{});
   });
+});
 
-  // When a new service worker takes over (i.e. an update was found and
-  // installed), reload once automatically so the fresh version is shown
-  // without the person needing to manually clear cache.
-  let refreshed = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if(refreshed) return;
-    refreshed = true;
-    window.location.reload();
+document.getElementById('settingsBtn').addEventListener('click', ()=>{
+  document.querySelectorAll('.settingsTab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.settingsTab[data-tab="account"]').classList.add('active');
+  document.querySelectorAll('.settingsPane').forEach(pane => {
+    pane.style.display = pane.dataset.pane === 'account' ? 'block' : 'none';
   });
-}
-</script>
-</body>
-</html>
+  document.getElementById('apiKeyInput').value = state.apiKey;
+  document.getElementById('proxyUrlInput').value = state.proxyUrl;
+  document.getElementById('ownKeyFields').style.display = state.backendMode === 'proxy' ? 'none' : 'block';
+  document.getElementById('proxyFields').style.display = state.backendMode === 'proxy' ? 'block' : 'none';
+  document.querySelectorAll('#backendModeRow .speedBtn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === state.backendMode);
+  });
+  document.g
