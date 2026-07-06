@@ -733,6 +733,45 @@
 </div>
 
 <script>
+// ===== DIAGNOSTIC ERROR REPORTER — separate, earlier <script> tag so it
+// can catch even a parse-time SyntaxError in the main app script below,
+// not just runtime errors. Shows any JS error directly on screen so it
+// can be screenshotted and reported, without needing a computer/console. =====
+(function(){
+  function showFatalError(title, detail){
+    try{
+      let banner = document.getElementById('__fatalErrorBanner');
+      if(!banner){
+        banner = document.createElement('div');
+        banner.id = '__fatalErrorBanner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;'
+          + 'background:#3a0d0d;color:#ffb3b3;font-family:monospace;font-size:11px;'
+          + 'padding:10px;white-space:pre-wrap;word-break:break-word;'
+          + 'max-height:60vh;overflow-y:auto;border-bottom:3px solid red;';
+        document.body.insertBefore(banner, document.body.firstChild);
+      }
+      const line = document.createElement('div');
+      line.style.marginBottom = '8px';
+      line.textContent = '⚠ ' + title + '\n' + detail;
+      banner.appendChild(line);
+    }catch(e){ /* if even this fails, nothing more we can do */ }
+  }
+  window.addEventListener('error', function(e){
+    showFatalError(
+      'JS Error: ' + (e.message || 'unknown'),
+      'File: ' + (e.filename || '?') + ' Line: ' + (e.lineno || '?') + ' Col: ' + (e.colno || '?')
+      + (e.error && e.error.stack ? '\n' + e.error.stack.split('\n').slice(0,4).join('\n') : '')
+    );
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    showFatalError(
+      'Unhandled Promise Rejection',
+      (e.reason && e.reason.stack) ? e.reason.stack.split('\n').slice(0,4).join('\n') : String(e.reason)
+    );
+  });
+})();
+</script>
+<script>
 /* =========================================================
    LANGUAGES
 ========================================================= */
