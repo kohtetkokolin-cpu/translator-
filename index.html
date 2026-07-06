@@ -259,8 +259,10 @@
     background:rgba(0,0,0,0.25);
     display:flex;
     align-items:center;
-    gap:10px;
+    gap:8px;
     flex-shrink:0;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
   }
   #panelB .inputRow{
     padding-bottom:calc(12px + env(safe-area-inset-bottom));
@@ -293,19 +295,19 @@
   .sendBtn svg{width:17px;height:17px;fill:var(--cyan);}
 
   .camBtn{
-    width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    width:42px;height:42px;border-radius:50%;flex-shrink:0;
     background:rgba(255,255,255,0.08);
     border:none;
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;
     touch-action:manipulation;
   }
-  .camBtn svg{width:19px;height:19px;fill:#fff;}
+  .camBtn svg{width:17px;height:17px;fill:#fff;}
   .camBtn.busy{opacity:0.5;pointer-events:none;}
   .scanBadge{color:var(--cyan);font-size:8px;font-weight:700;border:1px solid var(--cyan);border-radius:8px;padding:1px 5px;}
 
   .micBtn{
-    width:52px;height:52px;border-radius:50%;flex-shrink:0;
+    width:46px;height:46px;border-radius:50%;flex-shrink:0;
     background:rgba(255,255,255,0.08);
     border:none;
     display:flex;align-items:center;justify-content:center;
