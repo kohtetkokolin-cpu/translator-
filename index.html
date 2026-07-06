@@ -1975,4 +1975,578 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.querySelectorAll('#backendModeRow .speedBtn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === state.backendMode);
   });
-  document.g
+  document.getElementById('offlineToggle').checked = state.offlineForced;
+  document.getElementById('autoSpeakToggle').checked = state.autoSpeak;
+  document.getElementById('holdToTalkToggle').checked = state.holdToTalk;
+  document.getElementById('showTranslatedOutToggle').checked = state.showTranslatedOut;
+  document.getElementById('lightThemeToggle').checked = state.lightTheme;
+  document.getElementById('saveHistoryToggle').checked = state.saveHistory;
+  document.getElementById('glossaryInput').value = state.glossary;
+  document.getElementById('versionFooter').textContent = 'Walkie-Talkie Translator · v' + APP_VERSION;
+  clearHistoryArmed = false;
+  clearTimeout(clearHistoryResetTimer);
+  const chBtn = document.getElementById('clearHistoryBtn');
+  chBtn.textContent = '🗑 Clear Conversation History';
+  chBtn.style.borderColor = '';
+  chBtn.style.color = '';
+  document.querySelectorAll('#speedRow .speedBtn').forEach(btn => {
+    btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.speechRate);
+  });
+  document.querySelectorAll('#toneRow .speedBtn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tone === state.tone);
+  });
+  document.querySelectorAll('#voiceEngineRow .speedBtn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.engine === state.voiceEngine);
+  });
+  overlay.classList.add('show');
+});
+document.querySelectorAll('#backendModeRow .speedBtn').forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    document.getElementById('ownKeyFields').style.display = btn.dataset.mode === 'proxy' ? 'none' : 'block';
+    document.getElementById('proxyFields').style.display = btn.dataset.mode === 'proxy' ? 'block' : 'none';
+  });
+});
+document.querySelectorAll('.speedBtn').forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    const row = btn.closest('.speedRow');
+    row.querySelectorAll('.speedBtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+document.getElementById('cancelBtn').addEventListener('click', ()=> overlay.classList.remove('show'));
+document.getElementById('exportHistoryBtn').addEventListener('click', async ()=>{
+  if(!state.messages.length){
+    showToast('Export လုပ်စရာ message မရှိသေးပါ', 'warn');
+    return;
+  }
+  const lines = [];
+  lines.push('Walkie-Talkie Translator — Conversation Export');
+  lines.push('Exported: ' + new Date().toLocaleString());
+  lines.push('='.repeat(44));
+  lines.push('');
+  const chronological = [...state.messages].reverse().filter(m => !m.pending);
+  chronological.forEach(m => {
+    const who = m.sender === 'A' ? 'Person A' : 'Person B';
+    const time = m.timestamp ? formatTime(m.timestamp) : '';
+    lines.push(`[${time}] ${who}`);
+    lines.push(`  Original:   ${m.originalText}`);
+    lines.push(`  Translated: ${m.translatedText}`);
+    lines.push('');
+  });
+  const text = lines.join('\n');
+  const filename = `conversation-${new Date().toISOString().slice(0,10)}.txt`;
+
+  try{
+    const file = new File([text], filename, {type:'text/plain'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'Conversation Export'});
+      return;
+    }
+  }catch(e){ /* fall through to direct download */ }
+
+  const blob = new Blob([text], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  showToast('Conversation ကို download လုပ်ပြီးပါပြီ။');
+});
+
+let clearHistoryArmed = false;
+let clearHistoryResetTimer = null;
+document.getElementById('clearHistoryBtn').addEventListener('click', (e)=>{
+  const btn = e.currentTarget;
+  if(!clearHistoryArmed){
+    clearHistoryArmed = true;
+    btn.textContent = '⚠️ ထပ်နှိပ်ရင် ပြန်ရအောင် မလုပ်နိုင်တော့ပါ — သေချာလား?';
+    btn.style.borderColor = 'var(--red)';
+    btn.style.color = 'var(--red)';
+    clearHistoryResetTimer = setTimeout(()=>{
+      clearHistoryArmed = false;
+      btn.textContent = '🗑 Clear Conversation History';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }, 3000);
+    return;
+  }
+  clearTimeout(clearHistoryResetTimer);
+  clearHistoryArmed = false;
+  btn.textContent = '🗑 Clear Conversation History';
+  btn.style.borderColor = '';
+  btn.style.color = '';
+  state.messages = [];
+  try{ localStorage.removeItem('wt_messages'); }catch(e){}
+  renderPanel('A'); renderPanel('B');
+  showToast('Conversation history ကို ရှင်းလိုက်ပါပြီ။');
+  vibrate(20);
+});
+document.getElementById('applyBtn').addEventListener('click', ()=>{
+  state.apiKey = document.getElementById('apiKeyInput').value.trim();
+  state.proxyUrl = document.getElementById('proxyUrlInput').value.trim();
+  const activeBackendBtn = document.querySelector('#backendModeRow .speedBtn.active');
+  if(activeBackendBtn) state.backendMode = activeBackendBtn.dataset.mode;
+  state.offlineForced = document.getElementById('offlineToggle').checked;
+  state.autoSpeak = document.getElementById('autoSpeakToggle').checked;
+  state.holdToTalk = document.getElementById('holdToTalkToggle').checked;
+  state.showTranslatedOut = document.getElementById('showTranslatedOutToggle').checked;
+  state.lightTheme = document.getElementById('lightThemeToggle').checked;
+  state.saveHistory = document.getElementById('saveHistoryToggle').checked;
+  state.glossary = document.getElementById('glossaryInput').value.trim();
+  document.body.classList.toggle('light-theme', state.lightTheme);
+  const activeSpeedBtn = document.querySelector('#speedRow .speedBtn.active');
+  if(activeSpeedBtn) state.speechRate = parseFloat(activeSpeedBtn.dataset.rate);
+  const activeToneBtn = document.querySelector('#toneRow .speedBtn.active');
+  if(activeToneBtn) state.tone = activeToneBtn.dataset.tone;
+  const activeEngineBtn = document.querySelector('#voiceEngineRow .speedBtn.active');
+  if(activeEngineBtn) state.voiceEngine = activeEngineBtn.dataset.engine;
+  try{
+    localStorage.setItem('wt_apiKey', state.apiKey);
+    localStorage.setItem('wt_proxyUrl', state.proxyUrl);
+    localStorage.setItem('wt_backendMode', state.backendMode);
+    localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
+    localStorage.setItem('wt_speechRate', String(state.speechRate));
+    localStorage.setItem('wt_autoSpeak', state.autoSpeak ? '1' : '0');
+    localStorage.setItem('wt_holdToTalk', state.holdToTalk ? '1' : '0');
+    localStorage.setItem('wt_showTranslatedOut', state.showTranslatedOut ? '1' : '0');
+    localStorage.setItem('wt_lightTheme', state.lightTheme ? '1' : '0');
+    localStorage.setItem('wt_tone', state.tone);
+    localStorage.setItem('wt_voiceEngine', state.voiceEngine);
+    localStorage.setItem('wt_glossary', state.glossary);
+    localStorage.setItem('wt_saveHistory', state.saveHistory ? '1' : '0');
+    if(state.saveHistory){
+      localStorage.setItem('wt_messages', JSON.stringify(state.messages.slice(0, 200)));
+    } else {
+      localStorage.removeItem('wt_messages');
+    }
+  }catch(e){ /* storage unavailable — settings just won't persist */ }
+  overlay.classList.remove('show');
+  renderStatusBar();
+  renderPanel('A'); renderPanel('B');
+  showToast('Settings သိမ်းပြီးပါပြီ။');
+});
+overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('show'); });
+
+/* =========================================================
+   QUICK TRANSLATE (one-way: paste text / scan photo / voice,
+   translate whatever it is into a language YOU choose — not
+   part of the two-person Walkie-Talkie conversation)
+========================================================= */
+state.qtTargetCode = 'en';
+state.qtMicCode = 'my';
+state.qtHistory = [];
+
+function qtPopulateSelects(){
+  const targetSel = document.getElementById('qtTargetLang');
+  const micSel = document.getElementById('qtMicLang');
+  targetSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${langOptionLabel(l)}</option>`).join('');
+  micSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${langOptionLabel(l)}</option>`).join('');
+  targetSel.value = state.qtTargetCode;
+  micSel.value = state.qtMicCode;
+}
+
+document.querySelectorAll('.modeTab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.modeTab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.mode;
+    const isQuick = mode === 'quick';
+    document.getElementById('panelA').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('divider').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('panelB').style.display = isQuick ? 'none' : 'flex';
+    document.getElementById('quickPanel').style.display = isQuick ? 'flex' : 'none';
+  });
+});
+
+document.getElementById('qtTargetLang').addEventListener('change', (e) => { state.qtTargetCode = e.target.value; });
+document.getElementById('qtMicLang').addEventListener('change', (e) => { state.qtMicCode = e.target.value; });
+
+function qtRenderHistory(){
+  const el = document.getElementById('qtHistory');
+  if(!state.qtHistory.length){
+    el.innerHTML = '<div class="qtEmpty">မသိတဲ့ စာသားကို ကူးထည့်ပါ၊ ဓာတ်ပုံရိုက်ပါ၊<br>သို့မဟုတ် အသံနဲ့ မေးပါ — AI က ရွေးထားတဲ့ဘာသာစကားသို့ တိကျစွာ ပြန်ပေးပါလိမ့်မယ်။</div>';
+    return;
+  }
+  el.innerHTML = state.qtHistory.map(item => `
+    <div class="qtCard">
+      ${item.pending ? `
+        <div class="qtOriginal">${escapeHtml(item.queryLabel || item.originalText || '')}</div>
+        <hr>
+        <div class="qtTranslation"><span class="dotFlicker">translating…</span></div>
+      ` : `
+        <div class="qtBadges">
+          ${item.detectedLang ? `<span class="qtDetected">Detected: ${escapeHtml(item.detectedLang)}</span>` : ''}
+          ${item.usedOffline ? (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
+        </div>
+        <div class="qtOriginal">${escapeHtml(item.originalText)}</div>
+        <div class="miniControls">
+          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.originalText)}, this)'>${svgCopy()}</button>
+        </div>
+        <hr>
+        <div class="qtTranslation">${escapeHtml(item.translatedText)}</div>
+        <div class="miniControls">
+          <button class="iconBtn" title="Play" onclick='qtPlay(${item.id})'>${svgPlay()}</button>
+          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.translatedText)}, this)'>${svgCopy()}</button>
+        </div>
+      `}
+    </div>
+  `).join('');
+}
+
+function qtPlay(id){
+  const item = state.qtHistory.find(i => i.id === id);
+  if(!item || !item.translatedText) return;
+  const lang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+  speak(item.translatedText, lang);
+}
+
+async function qtTranslate(rawText, queryLabel){
+  rawText = (rawText || '').trim();
+  if(!rawText) return;
+  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+
+  const id = Date.now().toString();
+  state.qtHistory.unshift({ id, pending: true, queryLabel: queryLabel || rawText });
+  qtRenderHistory();
+
+  let translatedText = '';
+  let detectedLang = '';
+  let usedOffline = false;
+  let approx = false;
+
+  if(state.offlineForced || !hasBackend()){
+    usedOffline = true;
+    const remembered = tmLookup('auto', targetLang.code, rawText);
+    if(remembered){
+      translatedText = remembered;
+      approx = false;
+    } else {
+      // Heuristic: try the offline dictionary assuming each known language
+      // as the possible source, since we don't know what this text is.
+      let found = null;
+      for(const l of LANGUAGES){
+        if(l.code === targetLang.code) continue;
+        const off = offlineTranslate(rawText, l.code, targetLang.code);
+        if(off){ found = off; break; }
+      }
+      if(found){ translatedText = found.text; approx = found.approx; }
+      else { translatedText = `[Offline] ${rawText}`; approx = true; }
+    }
+  } else {
+    try{
+      const prompt = `Detect the language of the following message and translate it into ${targetLang.name}. `
+        + `Understand the full meaning first, then translate naturally the way a native ${targetLang.name} speaker would say it — not word-for-word.\n\n`
+        + `Tone: ${toneInstruction()}\n`
+        + `${glossaryInstruction()}`
+        + `\nRespond in EXACTLY this format, nothing else:\n`
+        + `LANG: <name of the detected source language>\n`
+        + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
+        + `Message: "${rawText}"`;
+
+      const resp = await geminiFetch('gemini-3.5-flash', {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+      });
+
+      if(resp.ok){
+        const data = await resp.json();
+        const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+        const langMatch = raw.match(/LANG:\s*(.*)/i);
+        const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
+        detectedLang = langMatch ? langMatch[1].trim() : '';
+        translatedText = transMatch ? transMatch[1].trim() : raw;
+        if(translatedText){
+          tmSave('auto', targetLang.code, rawText, translatedText);
+        } else {
+          usedOffline = true; approx = true; translatedText = `[Empty response] ${rawText}`;
+        }
+      } else {
+        usedOffline = true; approx = true; translatedText = `[Network Error] ${rawText}`;
+      }
+    } catch(e){
+      usedOffline = true; approx = true; translatedText = `[Error Connection] ${rawText}`;
+    }
+  }
+
+  const item = state.qtHistory.find(i => i.id === id);
+  if(item){
+    Object.assign(item, {
+      pending: false, originalText: rawText, translatedText, detectedLang, usedOffline, approx
+    });
+  }
+  qtRenderHistory();
+  if(state.autoSpeak) speak(translatedText, targetLang);
+}
+
+document.getElementById('qtSendBtn').addEventListener('click', () => {
+  const input = document.getElementById('qtInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  qtTranslate(text);
+});
+document.getElementById('qtInput').addEventListener('input', (e) => {
+  e.target.style.height = 'auto';
+  e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px';
+});
+document.getElementById('qtInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    document.getElementById('qtSendBtn').click();
+  }
+});
+
+document.getElementById('qtCamBtn').addEventListener('click', () => {
+  document.getElementById('qtScanInput').click();
+});
+document.getElementById('qtScanInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  await qtScanAndTranslate(file);
+});
+
+async function qtScanAndTranslate(file){
+  const targetLang = langByCode(state.qtTargetCode) || LANGUAGES[0];
+  if(state.offlineForced || !hasBackend()){
+    showToast('Scan feature အတွက် AI Translation Key လိုအပ်ပါတယ်။ Settings ထဲမှာ ထည့်ပေးပါ။', 'warn');
+    return;
+  }
+  const id = Date.now().toString();
+  state.qtHistory.unshift({ id, pending: true, queryLabel: '(scanning photo…)' });
+  qtRenderHistory();
+
+  try{
+    const base64 = await fileToBase64(file);
+    const prompt = `Read all the text visible in this image (any language). Detect its language, then translate it into ${targetLang.name}, `
+      + `understanding the full meaning naturally rather than word-for-word.\n\n`
+      + `Tone: ${toneInstruction()}\n`
+      + `${glossaryInstruction()}`
+      + `\nRespond in EXACTLY this format, nothing else:\n`
+      + `LANG: <name of the detected source language>\n`
+      + `ORIGINAL: <the text you read from the image>\n`
+      + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
+
+    const resp = await geminiFetch('gemini-3.5-flash', {
+      contents: [{ parts: [
+        { text: prompt },
+        { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+      ] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+    });
+
+    if(!resp.ok){
+      let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
+      console.error('QT scan API error:', resp.status, bodyText);
+      showToast(`Scan translation မအောင်မြင်ပါ (Error ${resp.status})`, 'error');
+      state.qtHistory = state.qtHistory.filter(i => i.id !== id);
+      qtRenderHistory();
+      return;
+    }
+
+    const data = await resp.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+    const langMatch = raw.match(/LANG:\s*(.*)/i);
+    const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATION:/i);
+    const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
+    const detectedLang = langMatch ? langMatch[1].trim() : '';
+    const originalText = origMatch ? origMatch[1].trim() : '(scanned image)';
+    const translatedText = transMatch ? transMatch[1].trim() : raw;
+
+    const item = state.qtHistory.find(i => i.id === id);
+    if(item){
+      Object.assign(item, { pending: false, originalText, translatedText, detectedLang, usedOffline: false, approx: false });
+    }
+    if(originalText) tmSave('auto', targetLang.code, originalText, translatedText);
+    qtRenderHistory();
+    if(state.autoSpeak) speak(translatedText, targetLang);
+  } catch(e){
+    console.error('QT scan failed:', e);
+    showToast(`Scan translation အမှားဖြစ်သွားပါတယ်: ${e.message}`, 'error');
+    state.qtHistory = state.qtHistory.filter(i => i.id !== id);
+    qtRenderHistory();
+  }
+}
+
+let qtRecognition = null;
+document.getElementById('qtMicBtn').addEventListener('click', () => {
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognitionCtor){
+    showToast('ဒီ browser မှာ voice input ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။', 'error');
+    return;
+  }
+  const micBtn = document.getElementById('qtMicBtn');
+  if(qtRecognition){
+    try{ qtRecognition.stop(); }catch(e){}
+    qtRecognition = null;
+    micBtn.classList.remove('listening');
+    return;
+  }
+  const micLang = langByCode(state.qtMicCode) || LANGUAGES[0];
+  qtRecognition = new SpeechRecognitionCtor();
+  qtRecognition.lang = micLang.ttsLocale;
+  qtRecognition.interimResults = false;
+  qtRecognition.maxAlternatives = 1;
+  micBtn.classList.add('listening');
+
+  qtRecognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    if(text && text.trim()) qtTranslate(text, `🎙️ ${text}`);
+  };
+  qtRecognition.onerror = (e) => {
+    if(e.error !== 'no-speech' && e.error !== 'aborted'){
+      showToast('Voice input အမှားဖြစ်သွားပါတယ်: ' + e.error, 'error');
+    }
+  };
+  qtRecognition.onspeechend = () => { try{ qtRecognition.stop(); }catch(e){} };
+  qtRecognition.onend = () => { qtRecognition = null; micBtn.classList.remove('listening'); };
+
+  try{ qtRecognition.start(); } catch(e){ qtRecognition = null; micBtn.classList.remove('listening'); }
+});
+
+/* =========================================================
+   QUICK PHRASEBOOK — one-tap common phrases for migrant workers
+   (emergency, medical, workplace, housing, wages, immigration).
+   Inserts into the input box in the side's own language; sending
+   it afterward translates & speaks it as normal, and since these
+   exact phrases are also in the offline dictionary, they translate
+   accurately even with zero internet.
+========================================================= */
+const PB_CATEGORIES = [
+  {key:'emergency', label:'🚨 Emergency'},
+  {key:'medical', label:'🏥 Medical'},
+  {key:'workplace', label:'💼 Workplace'},
+  {key:'housing', label:'🏠 Housing'},
+  {key:'wages', label:'💰 Wages'},
+  {key:'immigration', label:'✈️ Immigration'},
+];
+let pbActiveCategory = 'emergency';
+let pbActiveSide = 'A';
+
+function pbRenderCategories(){
+  const el = document.getElementById('pbCategories');
+  el.innerHTML = PB_CATEGORIES.map(c => `
+    <button type="button" class="pbCatBtn ${c.key===pbActiveCategory?'active':''}" data-cat="${c.key}">${c.label}</button>
+  `).join('');
+  el.querySelectorAll('.pbCatBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pbActiveCategory = btn.dataset.cat;
+      pbRenderCategories();
+      pbRenderPhrases();
+    });
+  });
+}
+
+function pbRenderPhrases(){
+  const el = document.getElementById('pbPhraseList');
+  const lang = pbActiveSide === 'A' ? state.langA : state.langB;
+  const items = PHRASEBOOK.filter(p => p.cat === pbActiveCategory);
+  el.innerHTML = items.map(p => {
+    const text = p[lang.code] || p.en;
+    return `<div class="pbPhraseItem" data-text="${escapeHtml(text).replace(/"/g,'&quot;')}">${escapeHtml(text)}</div>`;
+  }).join('');
+  el.querySelectorAll('.pbPhraseItem').forEach(item => {
+    item.addEventListener('click', () => {
+      const input = document.getElementById('input' + pbActiveSide);
+      input.value = item.dataset.text;
+      document.getElementById('phrasebookOverlay').classList.remove('show');
+      input.focus();
+      vibrate(10);
+    });
+  });
+}
+
+function pbOpen(side){
+  pbActiveSide = side;
+  pbRenderCategories();
+  pbRenderPhrases();
+  document.getElementById('phrasebookOverlay').classList.add('show');
+}
+
+document.getElementById('pbCloseBtn').addEventListener('click', () => {
+  document.getElementById('phrasebookOverlay').classList.remove('show');
+});
+document.getElementById('phrasebookOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'phrasebookOverlay') document.getElementById('phrasebookOverlay').classList.remove('show');
+});
+
+qtPopulateSelects();
+qtRenderHistory();
+
+/* =========================================================
+   INIT
+========================================================= */
+try{
+  const savedKey = localStorage.getItem('wt_apiKey');
+  const savedProxyUrl = localStorage.getItem('wt_proxyUrl');
+  const savedBackendMode = localStorage.getItem('wt_backendMode');
+  const savedOffline = localStorage.getItem('wt_offlineForced');
+  const savedRate = localStorage.getItem('wt_speechRate');
+  const savedAutoSpeak = localStorage.getItem('wt_autoSpeak');
+  const savedHoldToTalk = localStorage.getItem('wt_holdToTalk');
+  const savedShowSub = localStorage.getItem('wt_showTranslatedOut');
+  const savedTheme = localStorage.getItem('wt_lightTheme');
+  const savedTone = localStorage.getItem('wt_tone');
+  const savedVoiceEngine = localStorage.getItem('wt_voiceEngine');
+  const savedGlossary = localStorage.getItem('wt_glossary');
+  const savedSaveHistory = localStorage.getItem('wt_saveHistory');
+  if(savedKey) state.apiKey = savedKey;
+  if(savedProxyUrl) state.proxyUrl = savedProxyUrl;
+  if(savedBackendMode) state.backendMode = savedBackendMode;
+  if(savedOffline !== null) state.offlineForced = savedOffline === '1';
+  if(savedRate) state.speechRate = parseFloat(savedRate);
+  if(savedAutoSpeak !== null) state.autoSpeak = savedAutoSpeak === '1';
+  if(savedHoldToTalk !== null) state.holdToTalk = savedHoldToTalk === '1';
+  if(savedShowSub !== null) state.showTranslatedOut = savedShowSub === '1';
+  if(savedTheme === '1'){ state.lightTheme = true; document.body.classList.add('light-theme'); }
+  if(savedTone) state.tone = savedTone;
+  if(savedVoiceEngine) state.voiceEngine = savedVoiceEngine;
+  if(savedGlossary) state.glossary = savedGlossary;
+  if(savedSaveHistory !== null) state.saveHistory = savedSaveHistory === '1';
+
+  if(state.saveHistory){
+    const savedMsgs = localStorage.getItem('wt_messages');
+    if(savedMsgs) state.messages = JSON.parse(savedMsgs);
+  }
+}catch(e){ /* storage unavailable — falls back to blank each launch */ }
+
+renderStatusBar();
+renderPanel('A');
+renderPanel('B');
+
+// First-launch onboarding: explain the rotated face-to-face panel design.
+try{
+  if(!localStorage.getItem('wt_onboardingSeen')){
+    document.getElementById('onboardingOverlay').classList.add('show');
+  }
+}catch(e){}
+document.getElementById('onboardingCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('onboardingOverlay').classList.remove('show');
+  try{ localStorage.setItem('wt_onboardingSeen', '1'); }catch(e){}
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').then((reg) => {
+      // Check for a newer service-worker.js every time the app opens.
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  });
+
+  // When a new service worker takes over (i.e. an update was found and
+  // installed), reload once automatically so the fresh version is shown
+  // without the person needing to manually clear cache.
+  let refreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(refreshed) return;
+    refreshed = true;
+    window.location.reload();
+  });
+}
+</script>
+</body>
+</html>
