@@ -251,6 +251,24 @@
     border:1px solid var(--border);
   }
   .pbPhraseItem:active{background:rgba(0,229,255,0.12);border-color:var(--cyan);}
+
+  /* ===== Type Overlay (non-rotated typing sheet for the flipped panel) ===== */
+  #typeOverlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:260;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  #typeOverlay.show{display:flex;}
+  #typeOverlayCard{
+    background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:480px;
+    display:flex;flex-direction:column;padding:16px;
+    padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    animation:pbSlideUp .2s ease-out;
+  }
+  #typeOverlayInput{
+    width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:14px;
+    padding:12px 14px;color:#fff;font-size:16px;font-family:inherit;resize:none;outline:none;
+    margin-bottom:12px;
+  }
   .offlineBadge{color:#888;font-size:8px;font-weight:700;border:1px solid #555;border-radius:8px;padding:1px 5px;}
 
   /* ===== Input Row ===== */
@@ -465,6 +483,16 @@
     border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;font-family:inherit;
   }
   #qtHistory{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  #qtSuggestions{
+    display:flex;gap:8px;overflow-x:auto;padding:10px 12px 4px;flex-shrink:0;
+    -webkit-overflow-scrolling:touch;
+  }
+  .qtSuggestChip{
+    flex-shrink:0;padding:8px 12px;border-radius:16px;border:1px solid var(--border2);
+    background:var(--surface);color:#bbb;font-size:11.5px;font-weight:600;cursor:pointer;
+    white-space:nowrap;touch-action:manipulation;
+  }
+  .qtSuggestChip:active{background:rgba(0,229,255,0.15);border-color:var(--cyan);color:#fff;}
   #qtHistory .qtEmpty{color:#666;font-size:12px;text-align:center;margin-top:40px;line-height:1.7;}
   .qtCard{
     background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -545,6 +573,11 @@
     <label>Translate into</label>
     <select id="qtTargetLang" class="qtLangSelect"></select>
   </div>
+  <div class="qtHeader" style="border-top:1px solid var(--border);">
+    <label>Work Domain</label>
+    <select id="qtDomain" class="qtLangSelect"></select>
+  </div>
+  <div id="qtSuggestions"></div>
   <div id="qtHistory"><div class="qtEmpty">မသိတဲ့ စာသားကို ကူးထည့်ပါ၊ ဓာတ်ပုံရိုက်ပါ၊<br>သို့မဟုတ် အသံနဲ့ မေးပါ — AI က ရွေးထားတဲ့ဘာသာစကားသို့ တိကျစွာ ပြန်ပေးပါလိမ့်မယ်။</div></div>
   <div class="qtMicLangRow">
     <label>🎙️ အသံနဲ့ မေးမယ်ဆိုရင် ဘယ်ဘာသာစကားနဲ့ ပြောမလဲ:</label>
@@ -566,6 +599,19 @@
 
 <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="qtScanInput" accept="image/*" capture="environment" style="display:none">
+
+<div id="typeOverlay">
+  <div id="typeOverlayCard">
+    <div class="pbHeader">
+      <h2>✏️ Type Message</h2>
+      <button id="typeOverlayCloseBtn" class="iconBtn" aria-label="Close" style="width:30px;height:30px;">
+        <svg viewBox="0 0 24 24"><path fill="#ccc" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <textarea id="typeOverlayInput" placeholder="Type message to translate..." rows="3"></textarea>
+    <button id="typeOverlaySendBtn" class="obBtn">➤ Send &amp; Translate</button>
+  </div>
+</div>
 
 <div id="phrasebookOverlay">
   <div id="phrasebookCard">
@@ -1531,7 +1577,7 @@ async function handleTranslation(rawText, sender, isVoice){
         await fallbackOffline('[Network Error]');
       }
     } catch(e){
-      errorDetail = `Connection error: ${e.message}`;
+      errorDetail = `Connection error: ${e.message} — VPN/firewall ရှိရင် ပိတ်ကြည့်ပါ, Wi-Fi/mobile data ပြောင်းကြည့်ပါ`;
       console.error('Gemini fetch failed:', e);
       await fallbackOffline('[Error Connection]');
     }
@@ -1738,14 +1784,14 @@ function renderPanel(side){
     <div class="chatLog" id="chatLog${side}"></div>
     <div class="inputRow">
       <div class="textFieldWrap">
-        <input type="text" id="input${side}" placeholder="Type message to translate..." aria-label="Message to translate">
+        <input type="text" id="input${side}" placeholder="Type message to translate..." aria-label="Message to translate" ${isA ? 'readonly' : ''}>
         <button class="sendBtn" id="sendBtn${side}" aria-label="Send and translate">${svgSend()}</button>
       </div>
-      <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo" aria-label="Scan a photo to translate">${svgCamera()}</button>
-      <button class="camBtn" id="phrasebook${side}" title="Quick phrasebook — emergency, medical, work, housing" aria-label="Open quick phrasebook">${svgBook()}</button>
       <button class="micBtn ${isListening?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="${state.holdToTalk ? 'Hold to talk, release to translate' : 'Tap to talk, auto-stops when you pause'}" aria-label="${state.holdToTalk ? 'Hold to talk' : 'Speak to translate'}">
         ${isTranslating ? '<div class="spinner"></div>' : svgMic()}
       </button>
+      <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan &amp; translate text from photo" aria-label="Scan a photo to translate">${svgCamera()}</button>
+      <button class="camBtn" id="phrasebook${side}" title="Quick phrasebook — emergency, medical, work, housing" aria-label="Open quick phrasebook">${svgBook()}</button>
     </div>
   `;
 
@@ -1764,6 +1810,11 @@ function renderPanel(side){
   document.getElementById('input'+side).addEventListener('keydown', (e)=>{
     if(e.key === 'Enter') handleTranslation(e.target.value, side, false);
   });
+  if(isA){
+    document.getElementById('inputA').addEventListener('click', ()=>{
+      openTypeOverlay('A');
+    });
+  }
 
   const micBtn = document.getElementById('mic'+side);
   let micHoldActive = false;
@@ -2178,7 +2229,135 @@ overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classL
 ========================================================= */
 state.qtTargetCode = 'en';
 state.qtMicCode = 'my';
+state.qtDomain = 'general';
 state.qtHistory = [];
+
+const WORK_DOMAINS = [
+  {
+    code: 'general', label: '🌐 General (No specific domain)',
+    hint: '',
+    suggestions: [],
+  },
+  {
+    code: 'electronics', label: '🔌 Electronics / PCB Factory',
+    hint: 'This conversation takes place in an electronics / PCB (printed circuit board) manufacturing factory. Use accurate industry-standard technical terminology for concepts like SMT (surface-mount technology), reflow soldering, pick-and-place machines, solder paste, wave soldering, PCB inspection, quality control (QC), defect rate, ESD (electrostatic discharge) precautions, and production line workflow — translate the way an experienced factory worker or engineer in this industry would actually say it, not literally word-for-word.',
+    suggestions: [
+      "What is today's defect rate?",
+      "Please check this solder joint again.",
+      "The machine needs maintenance.",
+      "How many units per hour is the target?",
+      "This board failed quality inspection.",
+      "Please wear your ESD wrist strap.",
+      "The reflow oven temperature looks wrong.",
+      "We are short of components for this line.",
+    ],
+  },
+  {
+    code: 'factory_general', label: '🏭 General Factory / Manufacturing',
+    hint: 'This conversation takes place in a general manufacturing factory. Use accurate terminology for production lines, shift schedules, machine operation, safety procedures, quality control, and factory management — the way a factory supervisor or worker would naturally say it.',
+    suggestions: [
+      "What time does the next shift start?",
+      "Please report any injury immediately.",
+      "This machine is not working properly.",
+      "We need more raw materials.",
+      "Please follow the safety procedure.",
+      "How many pieces did we produce today?",
+    ],
+  },
+  {
+    code: 'construction', label: '🏗️ Construction Site',
+    hint: 'This conversation takes place on a construction site. Use accurate terminology for scaffolding, rebar, concrete pouring, safety harnesses, blueprints, the foreman, crane operation, and building codes — the way an experienced construction worker would say it.',
+    suggestions: [
+      "Please wear your safety helmet and harness.",
+      "This scaffolding looks unstable.",
+      "We need more cement/concrete.",
+      "Where are the blueprints for this floor?",
+      "Please stop the crane, it's not safe.",
+      "This area is dangerous, do not enter.",
+    ],
+  },
+  {
+    code: 'kitchen', label: '🍳 Restaurant / Kitchen',
+    hint: 'This conversation takes place in a restaurant or food-service kitchen. Use accurate terminology for food preparation, kitchen equipment, food safety/hygiene, and service — the way kitchen staff would naturally say it.',
+    suggestions: [
+      "This needs to be cooked more.",
+      "Please wash your hands before handling food.",
+      "We are out of this ingredient.",
+      "This customer has a food allergy.",
+      "The kitchen needs to be cleaned now.",
+    ],
+  },
+  {
+    code: 'domestic', label: '🏠 Domestic / Housekeeping / Caregiving',
+    hint: 'This conversation takes place in a household setting (housekeeping, childcare, or eldercare). Use natural, warm, everyday terminology appropriate for a home setting — precision matters especially for care/medical instructions.',
+    suggestions: [
+      "What time should I pick up the children?",
+      "Please take this medicine after eating.",
+      "The baby needs a diaper change.",
+      "I finished cleaning the house.",
+      "Please call me if there is an emergency.",
+    ],
+  },
+  {
+    code: 'logistics', label: '🚚 Warehouse / Logistics',
+    hint: 'This conversation takes place in a warehouse/logistics setting. Use accurate terminology for inventory, shipping, forklift operation, loading docks, packing, and supply chain workflow — the way warehouse staff would say it.',
+    suggestions: [
+      "Where should this shipment go?",
+      "Please check the inventory count.",
+      "The forklift needs to move this pallet.",
+      "This package is damaged.",
+      "When is the next delivery truck arriving?",
+    ],
+  },
+  {
+    code: 'agriculture', label: '🌾 Farm / Agriculture',
+    hint: 'This conversation takes place on a farm/agricultural setting. Use accurate terminology for crops, livestock, farming equipment, irrigation, and seasonal work — the way farm workers would say it.',
+    suggestions: [
+      "When should we harvest this crop?",
+      "The irrigation system is not working.",
+      "This animal looks sick.",
+      "We need more fertilizer.",
+      "The weather looks bad for today's work.",
+    ],
+  },
+  {
+    code: 'healthcare', label: '⚕️ Healthcare / Caregiving',
+    hint: 'This conversation takes place in a healthcare or caregiving setting. Use accurate, careful medical/care terminology — be extra precise, since translation errors here could affect someone\'s health and safety.',
+    suggestions: [
+      "Where does it hurt?",
+      "Please take this medicine twice a day.",
+      "Do you have any allergies?",
+      "We need to call an ambulance.",
+      "Please rest and drink plenty of water.",
+    ],
+  },
+];
+const domainByCode = c => WORK_DOMAINS.find(d => d.code === c) || WORK_DOMAINS[0];
+
+function qtPopulateDomains(){
+  const sel = document.getElementById('qtDomain');
+  sel.innerHTML = WORK_DOMAINS.map(d => `<option value="${d.code}">${d.label}</option>`).join('');
+  sel.value = state.qtDomain;
+}
+function qtRenderSuggestions(){
+  const el = document.getElementById('qtSuggestions');
+  const domain = domainByCode(state.qtDomain);
+  if(!domain.suggestions.length){ el.innerHTML = ''; return; }
+  el.innerHTML = domain.suggestions.map(s =>
+    `<div class="qtSuggestChip" data-text="${escapeHtml(s).replace(/"/g,'&quot;')}">${escapeHtml(s)}</div>`
+  ).join('');
+  el.querySelectorAll('.qtSuggestChip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      vibrate(10);
+      qtTranslate(chip.dataset.text);
+    });
+  });
+}
+document.getElementById('qtDomain').addEventListener('change', (e)=>{
+  state.qtDomain = e.target.value;
+  try{ localStorage.setItem('wt_qtDomain', state.qtDomain); }catch(err){}
+  qtRenderSuggestions();
+});
 
 function qtPopulateSelects(){
   const targetSel = document.getElementById('qtTargetLang');
@@ -2187,6 +2366,8 @@ function qtPopulateSelects(){
   micSel.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${langOptionLabel(l)}</option>`).join('');
   targetSel.value = state.qtTargetCode;
   micSel.value = state.qtMicCode;
+  qtPopulateDomains();
+  qtRenderSuggestions();
 }
 
 document.querySelectorAll('.modeTab').forEach(tab => {
@@ -2278,10 +2459,12 @@ async function qtTranslate(rawText, queryLabel){
     }
   } else {
     try{
+      const domainHint = domainByCode(state.qtDomain).hint;
       const prompt = `Detect the language of the following message and translate it into ${targetLang.name}. `
         + `Understand the full meaning first, then translate naturally the way a native ${targetLang.name} speaker would say it — not word-for-word.\n\n`
         + `Tone: ${toneInstruction()}\n`
         + `${glossaryInstruction()}`
+        + (domainHint ? `\nWork context: ${domainHint}\n` : '')
         + `\nRespond in EXACTLY this format, nothing else:\n`
         + `LANG: <name of the detected source language>\n`
         + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
@@ -2363,10 +2546,12 @@ async function qtScanAndTranslate(file){
 
   try{
     const base64 = await fileToBase64(file);
+    const domainHint = domainByCode(state.qtDomain).hint;
     const prompt = `Read all the text visible in this image (any language). Detect its language, then translate it into ${targetLang.name}, `
       + `understanding the full meaning naturally rather than word-for-word.\n\n`
       + `Tone: ${toneInstruction()}\n`
       + `${glossaryInstruction()}`
+      + (domainHint ? `\nWork context: ${domainHint}\n` : '')
       + `\nRespond in EXACTLY this format, nothing else:\n`
       + `LANG: <name of the detected source language>\n`
       + `ORIGINAL: <the text you read from the image>\n`
@@ -2515,6 +2700,42 @@ document.getElementById('phrasebookOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'phrasebookOverlay') document.getElementById('phrasebookOverlay').classList.remove('show');
 });
 
+/* =========================================================
+   TYPE OVERLAY — a normal, non-rotated typing sheet.
+   The rotated panel's native keyboard can't be flipped by CSS (it's a
+   system overlay, always in the phone's true physical orientation), so
+   whoever reads that panel right-side-up would see the keyboard upside
+   down. This overlay gives them a properly-oriented place to type instead.
+========================================================= */
+let typeOverlaySide = 'A';
+function openTypeOverlay(side){
+  typeOverlaySide = side;
+  const input = document.getElementById('typeOverlayInput');
+  input.value = document.getElementById('input'+side).value;
+  document.getElementById('typeOverlay').classList.add('show');
+  setTimeout(()=>input.focus(), 50);
+}
+function closeTypeOverlay(){
+  document.getElementById('typeOverlay').classList.remove('show');
+}
+document.getElementById('typeOverlayCloseBtn').addEventListener('click', closeTypeOverlay);
+document.getElementById('typeOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'typeOverlay') closeTypeOverlay();
+});
+document.getElementById('typeOverlaySendBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('typeOverlayInput').value;
+  if(!text.trim()) return;
+  closeTypeOverlay();
+  vibrate(10);
+  handleTranslation(text, typeOverlaySide, false);
+});
+document.getElementById('typeOverlayInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    document.getElementById('typeOverlaySendBtn').click();
+  }
+});
+
 qtPopulateSelects();
 qtRenderHistory();
 
@@ -2532,6 +2753,7 @@ try{
   const savedShowSub = localStorage.getItem('wt_showTranslatedOut');
   const savedTheme = localStorage.getItem('wt_lightTheme');
   const savedTone = localStorage.getItem('wt_tone');
+  const savedQtDomain = localStorage.getItem('wt_qtDomain');
   const savedVoiceEngine = localStorage.getItem('wt_voiceEngine');
   const savedGlossary = localStorage.getItem('wt_glossary');
   const savedSaveHistory = localStorage.getItem('wt_saveHistory');
@@ -2545,6 +2767,7 @@ try{
   if(savedShowSub !== null) state.showTranslatedOut = savedShowSub === '1';
   if(savedTheme === '1'){ state.lightTheme = true; document.body.classList.add('light-theme'); }
   if(savedTone) state.tone = savedTone;
+  if(savedQtDomain) state.qtDomain = savedQtDomain;
   if(savedVoiceEngine) state.voiceEngine = savedVoiceEngine;
   if(savedGlossary) state.glossary = savedGlossary;
   if(savedSaveHistory !== null) state.saveHistory = savedSaveHistory === '1';
@@ -2558,6 +2781,8 @@ try{
 renderStatusBar();
 renderPanel('A');
 renderPanel('B');
+qtPopulateDomains();
+qtRenderSuggestions();
 
 // First-launch onboarding: explain the rotated face-to-face panel design.
 try{
