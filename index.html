@@ -321,6 +321,12 @@
   .pttCircle svg{width:22px;height:22px;fill:#fff;}
   .pttCircle.recording{transform:scale(1.12);box-shadow:0 0 0 8px rgba(255,82,82,0.25);}
   .pttHint{font-size:9px;color:#888;text-align:center;margin-top:2px;}
+  .pttCaption{
+    display:none;padding:8px 16px;font-size:13px;color:var(--cyan);font-weight:700;
+    background:rgba(0,229,255,0.06);border-top:1px solid rgba(0,229,255,0.2);
+    line-height:1.4;flex-shrink:0;
+  }
+  .pttCaption.show{display:block;}
   #panelB .toolbarRow{
     padding-bottom:calc(10px + env(safe-area-inset-bottom));
   }
@@ -622,6 +628,7 @@
     <label>🎙️ အသံနဲ့ မေးမယ်ဆိုရင် ဘယ်ဘာသာစကားနဲ့ ပြောမလဲ:</label>
     <select id="qtMicLang"></select>
   </div>
+  <div class="pttCaption" id="pttCaptionQT"></div>
   <div class="qtInputDock">
     <button class="modeToggleBtn" id="qtModeToggle" title="Switch between typing and Hold-to-Talk" aria-label="Switch input mode">
       <svg viewBox="0 0 24 24"><rect x="7" y="6.5" width="10" height="15" rx="2.2"/><rect x="8.7" y="2" width="2" height="5" rx="1"/><circle cx="12" cy="10.3" r="1.3" fill="#0C0D12"/><rect x="9" y="13.2" width="6" height="5.3" rx="1" fill="#0C0D12"/></svg>
@@ -1280,16 +1287,32 @@ function startStt(side, holdMode){
 
   const lang = side === 'A' ? state.langA : state.langB;
   recognition.lang = lang.ttsLocale;
+  // Continuous + interim results: in Hold-to-Talk this lets the person pause
+  // mid-sentence (still holding) without the session ending early, and shows
+  // live captions as words are recognized. Regular tap mode still stops
+  // itself on the first pause via onspeechend below, same as before.
+  recognition.continuous = true;
+  recognition.interimResults = true;
   state.listening[side] = true;
   renderPanel(side);
   renderStatusBar();
 
+  let finalTranscript = '';
+
   recognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    if(text && text.trim()) handleTranslation(text, side, true);
+    let interim = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const piece = e.results[i][0].transcript;
+      if(e.results[i].isFinal){ finalTranscript += piece + ' '; }
+      else { interim += piece; }
+    }
+    if(holdMode){
+      updateHoldCaption(side, (finalTranscript + interim).trim());
+    }
   };
   recognition.onerror = (e) => {
     stopStt();
+    clearHoldCaption(side);
     if(e.error === 'not-allowed' || e.error === 'permission-denied'){
       state.autoConversation = false; // can't run hands-free without mic access
       renderStatusBar();
@@ -1303,7 +1326,12 @@ function startStt(side, holdMode){
   recognition.onspeechend = () => {
     if(!holdMode){ try{ recognition.stop(); }catch(e){} }
   };
-  recognition.onend = () => { stopStt(); };
+  recognition.onend = () => {
+    stopStt();
+    clearHoldCaption(side);
+    const text = finalTranscript.trim();
+    if(text) handleTranslation(text, side, true);
+  };
 
   try{ recognition.start(); } catch(e){ stopStt(); }
 }
@@ -1313,6 +1341,19 @@ function stopStt(){
   renderPanel('A'); renderPanel('B');
   renderStatusBar();
 }
+function updateHoldCaption(side, text){
+  const el = document.getElementById('pttCaption' + side);
+  if(!el) return;
+  el.textContent = text || '🎙️ Listening...';
+  el.classList.add('show');
+}
+function clearHoldCaption(side){
+  const el = document.getElementById('pttCaption' + side);
+  if(!el) return;
+  el.classList.remove('show');
+  el.textContent = '';
+}
+
 function stopSttManual(){
   if(recognition){ try{ recognition.stop(); }catch(e){} }
   stopStt();
@@ -1897,6 +1938,7 @@ function renderPanel(side){
       </select>
     </div>
     <div class="chatLog" id="chatLog${side}"></div>
+    <div class="pttCaption" id="pttCaption${side}"></div>
     <div class="inputRow">
       <button class="modeToggleBtn ${state.pttMode[side]?'active':''}" id="modeToggle${side}" title="Switch between typing and Hold-to-Talk" aria-label="Switch input mode">
         ${state.pttMode[side] ? svgKeyboard() : svgWalkieTalkie()}
@@ -1967,6 +2009,11 @@ function renderPanel(side){
   pttCircle.addEventListener('pointerdown', (e)=>{
     e.preventDefault();
     if(isTranslating) return;
+    // Pointer capture keeps pointerup targeting this button even if the
+    // finger drifts slightly during the hold — without this, mobile touch
+    // tracking can misfire "pointerleave" almost instantly and cut off
+    // the recording before any speech is captured.
+    try{ pttCircle.setPointerCapture(e.pointerId); }catch(err){}
     pttHoldActive = true;
     vibrate(15);
     startStt(side, true);
@@ -1981,7 +2028,6 @@ function renderPanel(side){
   };
   pttCircle.addEventListener('pointerup', endPttHold);
   pttCircle.addEventListener('pointercancel', endPttHold);
-  pttCircle.addEventListener('pointerleave', endPttHold);
 
   const camBtn = document.getElementById('cam'+side);
   camBtn.addEventListener('click', (e)=>{
@@ -2747,13 +2793,21 @@ function qtStartRecognition(holdMode){
   const micLang = langByCode(state.qtMicCode) || LANGUAGES[0];
   qtRecognition = new SpeechRecognitionCtor();
   qtRecognition.lang = micLang.ttsLocale;
-  qtRecognition.interimResults = false;
+  qtRecognition.continuous = true;
+  qtRecognition.interimResults = true;
   qtRecognition.maxAlternatives = 1;
   document.getElementById('qtMicBtn').classList.add('listening');
 
+  let finalTranscript = '';
+
   qtRecognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    if(text && text.trim()) qtTranslate(text, `🎙️ ${text}`);
+    let interim = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const piece = e.results[i][0].transcript;
+      if(e.results[i].isFinal){ finalTranscript += piece + ' '; }
+      else { interim += piece; }
+    }
+    if(holdMode) updateHoldCaption('QT', (finalTranscript + interim).trim());
   };
   qtRecognition.onerror = (e) => {
     if(e.error !== 'no-speech' && e.error !== 'aborted'){
@@ -2767,6 +2821,9 @@ function qtStartRecognition(holdMode){
     qtRecognition = null;
     document.getElementById('qtMicBtn').classList.remove('listening');
     document.getElementById('qtPttCircle').classList.remove('recording');
+    clearHoldCaption('QT');
+    const text = finalTranscript.trim();
+    if(text) qtTranslate(text, `🎙️ ${text}`);
   };
 
   try{ qtRecognition.start(); } catch(e){
@@ -2799,6 +2856,7 @@ document.getElementById('qtModeToggle').addEventListener('click', () => {
 const qtPttCircle = document.getElementById('qtPttCircle');
 qtPttCircle.addEventListener('pointerdown', (e)=>{
   e.preventDefault();
+  try{ qtPttCircle.setPointerCapture(e.pointerId); }catch(err){}
   qtPttHoldActive = true;
   vibrate(15);
   qtStartRecognition(true);
@@ -2815,7 +2873,6 @@ const endQtPttHold = ()=>{
 };
 qtPttCircle.addEventListener('pointerup', endQtPttHold);
 qtPttCircle.addEventListener('pointercancel', endQtPttHold);
-qtPttCircle.addEventListener('pointerleave', endQtPttHold);
 
 /* =========================================================
    QUICK PHRASEBOOK — one-tap common phrases for migrant workers
