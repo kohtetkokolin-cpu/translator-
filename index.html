@@ -368,6 +368,10 @@
   .camBtn svg{width:17px;height:17px;fill:#fff;}
   .camBtn.busy{opacity:0.5;pointer-events:none;}
   .scanBadge{color:var(--cyan);font-size:8px;font-weight:700;border:1px solid var(--cyan);border-radius:8px;padding:1px 5px;}
+  .scanThumb{
+    width:100%;max-height:140px;object-fit:cover;border-radius:8px;
+    margin-bottom:8px;display:block;border:1px solid var(--border);
+  }
 
   .micBtn{
     width:46px;height:46px;border-radius:50%;flex-shrink:0;
@@ -1950,6 +1954,8 @@ async function scanAndTranslate(file, side){
 
   try{
     const base64 = await fileToBase64(file);
+    const isImage = file.type && file.type.startsWith('image/');
+    const photoUrl = isImage ? `data:${file.type};base64,${base64}` : null;
     const prompt = `This file (a photo or PDF document — a sign, label, document, screen, form, or handwriting) contains visible text, likely in ${sourceLang.name} but it could be in any language. `
       + `Step 1: Read every piece of text visible exactly as written (if it's a multi-page PDF, read all pages). `
       + `Step 2: Translate it into natural, fluent, native-sounding ${targetLang.name} — translate the full meaning and intent the way a native speaker would actually say it, NOT word-for-word. `
@@ -1969,7 +1975,10 @@ async function scanAndTranslate(file, side){
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 2048,
-        thinkingConfig: { thinkingLevel: 'minimal' }
+        thinkingConfig: { thinkingLevel: 'minimal' },
+        // Medium resolution keeps text OCR-readable while cutting image
+        // token processing (and therefore latency) noticeably vs default.
+        mediaResolution: 'MEDIA_RESOLUTION_MEDIUM'
       }
     });
 
@@ -1995,6 +2004,7 @@ async function scanAndTranslate(file, side){
     if(scanMsg){
       scanMsg.originalText = originalText;
       scanMsg.translatedText = translatedText;
+      scanMsg.photoUrl = photoUrl;
       scanMsg.pending = false;
     }
 
@@ -2221,6 +2231,7 @@ function renderChatLog(side){
               ${msg.approx ? `<span class="approxBadge">≈ approx</span>` : ''}
             </div>
           </div>
+          ${msg.photoUrl ? `<img src="${msg.photoUrl}" class="scanThumb" alt="Scanned photo">` : ''}
           <div class="mainText">${showMainPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(mainRaw)}</div>
           ${showMainPending ? '' : `
           <div class="miniControls">
@@ -2725,6 +2736,7 @@ function qtRenderHistory(){
           ${item.detectedLang ? `<span class="qtDetected">Detected: ${escapeHtml(item.detectedLang)}</span>` : ''}
           ${item.usedOffline ? (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
         </div>
+        ${item.photoUrl ? `<img src="${item.photoUrl}" class="scanThumb" alt="Scanned photo">` : ''}
         <div class="qtOriginal">${escapeHtml(item.originalText)}</div>
         <div class="miniControls">
           <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.originalText)}, this)'>${svgCopy()}</button>
@@ -2935,6 +2947,8 @@ async function qtScanAndTranslate(file){
 
   try{
     const base64 = await fileToBase64(file);
+    const isImage = file.type && file.type.startsWith('image/');
+    const photoUrl = isImage ? `data:${file.type};base64,${base64}` : null;
     const domainHint = domainByCode(state.qtDomain).hint;
     const prompt = `Read all the text in this file (a photo or PDF document, any language; if multi-page PDF, read all pages). Detect its language, then translate it into ${targetLang.name}, `
       + `understanding the full meaning naturally rather than word-for-word.\n\n`
@@ -2951,7 +2965,12 @@ async function qtScanAndTranslate(file){
         { text: prompt },
         { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
       ] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+        thinkingConfig: { thinkingLevel: 'minimal' },
+        mediaResolution: 'MEDIA_RESOLUTION_MEDIUM'
+      }
     });
 
     if(!resp.ok){
@@ -2974,7 +2993,7 @@ async function qtScanAndTranslate(file){
 
     const item = state.qtHistory.find(i => i.id === id);
     if(item){
-      Object.assign(item, { pending: false, originalText, translatedText, detectedLang, usedOffline: false, approx: false });
+      Object.assign(item, { pending: false, originalText, translatedText, detectedLang, photoUrl, usedOffline: false, approx: false });
     }
     if(originalText) tmSave('auto', targetLang.code, originalText, translatedText);
     qtRenderHistory();
