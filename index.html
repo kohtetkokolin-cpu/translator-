@@ -1437,7 +1437,7 @@ async function handleVoiceHold(side, blob){
         { text: prompt },
         { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
       ] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
     });
 
     const msg = state.messages.find(m => m.id === msgId);
@@ -1845,7 +1845,7 @@ async function handleTranslation(rawText, sender, isVoice){
         generationConfig: {
           temperature: 0.4,
           maxOutputTokens: 2048,
-          thinkingConfig: { thinkingLevel: 'low' }
+          thinkingConfig: { thinkingLevel: 'minimal' }
         }
       });
 
@@ -1969,7 +1969,7 @@ async function scanAndTranslate(file, side){
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 2048,
-        thinkingConfig: { thinkingLevel: 'low' }
+        thinkingConfig: { thinkingLevel: 'minimal' }
       }
     });
 
@@ -2271,7 +2271,7 @@ async function verifyBlock(msgId, text, fromSide, toSide, btnEl){
       + `Return ONLY the translation, nothing else.\n\nText: "${text}"`;
     const resp = await geminiFetch('gemini-3.5-flash', {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } }
+      generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'minimal' } }
     });
     if(resp.ok){
       const data = await resp.json();
@@ -2794,7 +2794,7 @@ async function qtTranslate(rawText, queryLabel){
 
       const resp = await geminiFetch('gemini-3.5-flash', {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
       });
 
       if(resp.ok){
@@ -2886,7 +2886,7 @@ async function qtHandleVoiceHold(blob){
         { text: prompt },
         { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
       ] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
     });
 
     if(!resp.ok){
@@ -2951,7 +2951,7 @@ async function qtScanAndTranslate(file){
         { text: prompt },
         { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
       ] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'low' } }
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
     });
 
     if(!resp.ok){
