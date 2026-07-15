@@ -1662,22 +1662,31 @@ async function handleVoiceHold(side, blob){
       + `ORIGINAL: <exact transcription of what was said>\n`
       + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
 
-    const resp = await geminiFetch('gemini-3.5-flash', {
+    const streamResult = await geminiFetchStream('gemini-3.5-flash', {
       contents: [{ parts: [
         { text: prompt },
         { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
       ] }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
+    }, (partialRaw) => {
+      const liveMsg = state.messages.find(m => m.id === msgId);
+      if(!liveMsg) return;
+      const origMatch = partialRaw.match(/ORIGINAL:\s*([\s\S]*?)(\nTRANSLATED:|$)/i);
+      const transMatch = partialRaw.match(/TRANSLATED:\s*([\s\S]*)/i);
+      if(origMatch) liveMsg.originalText = origMatch[1].trim() || '(transcribing voice…)';
+      if(transMatch) liveMsg.translatedText = transMatch[1].trim();
+      liveMsg.pending = false;
+      renderPanel('A'); renderPanel('B');
     });
 
     const msg = state.messages.find(m => m.id === msgId);
-    if(!resp.ok){
-      let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
-      console.error('Voice hold API error:', resp.status, bodyText);
+    if(!streamResult.ok){
+      let bodyText = ''; try{ bodyText = streamResult.resp ? await streamResult.resp.text() : ''; }catch(e2){}
+      console.error('Voice hold API error:', streamResult.status, bodyText);
       if(msg){
         msg.originalText = '(voice message)';
         msg.translatedText = `[Error] Could not process voice`;
-        msg.errorDetail = `API Error ${resp.status}`;
+        msg.errorDetail = `API Error ${streamResult.status || ''}`;
         msg.pending = false;
       }
       state.translating[side] = false;
@@ -1685,8 +1694,7 @@ async function handleVoiceHold(side, blob){
       return;
     }
 
-    const data = await resp.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+    const raw = streamResult.fullText || '';
     const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATED:/i);
     const transMatch = raw.match(/TRANSLATED:\s*([\s\S]*)/i);
     const originalText = origMatch ? origMatch[1].trim() : '(voice message)';
@@ -3212,25 +3220,33 @@ async function qtHandleVoiceHold(blob){
       + `ORIGINAL: <exact transcription of what was said>\n`
       + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
 
-    const resp = await geminiFetch('gemini-3.5-flash', {
+    const streamResult = await geminiFetchStream('gemini-3.5-flash', {
       contents: [{ parts: [
         { text: prompt },
         { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
       ] }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
+    }, (partialRaw) => {
+      const liveItem = state.qtHistory.find(i => i.id === id);
+      if(!liveItem) return;
+      const origMatch = partialRaw.match(/ORIGINAL:\s*([\s\S]*?)(\nTRANSLATION:|$)/i);
+      const transMatch = partialRaw.match(/TRANSLATION:\s*([\s\S]*)/i);
+      if(origMatch) liveItem.originalText = origMatch[1].trim();
+      if(transMatch) liveItem.translatedText = transMatch[1].trim();
+      liveItem.pending = false;
+      qtRenderHistory();
     });
 
-    if(!resp.ok){
-      let bodyText = ''; try{ bodyText = await resp.text(); }catch(e2){}
-      console.error('QT voice hold API error:', resp.status, bodyText);
-      showToast(`Voice translation မအောင်မြင်ပါ (Error ${resp.status})`, 'error');
+    if(!streamResult.ok){
+      let bodyText = ''; try{ bodyText = streamResult.resp ? await streamResult.resp.text() : ''; }catch(e2){}
+      console.error('QT voice hold API error:', streamResult.status, bodyText);
+      showToast(`Voice translation မအောင်မြင်ပါ (Error ${streamResult.status || ''})`, 'error');
       state.qtHistory = state.qtHistory.filter(i => i.id !== id);
       qtRenderHistory();
       return;
     }
 
-    const data = await resp.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+    const raw = streamResult.fullText || '';
     const langMatch = raw.match(/LANG:\s*(.*)/i);
     const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATION:/i);
     const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
