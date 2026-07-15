@@ -107,6 +107,30 @@
   }
   #autoBtn.on.pulsing .autoPulse{display:block;animation:autopulse 1s ease-in-out infinite;}
   @keyframes autopulse{0%,100%{opacity:.3;}50%{opacity:1;}}
+  #liveBtn{
+    display:flex;align-items:center;gap:5px;cursor:pointer;
+    padding:4px 9px;border-radius:20px;border:1px solid rgba(255,255,255,0.35);
+    background:rgba(0,0,0,0.2);font-size:10px;font-weight:800;letter-spacing:.2px;
+    transition:background .15s,border-color .15s;
+    touch-action:manipulation;
+  }
+  #liveBtn svg{width:11px;height:11px;fill:#fff;}
+  #liveBtn.on{background:#FF3366;border-color:#FF3366;color:#fff;}
+  #liveBtn.on .autoPulse{display:block;background:#fff;animation:autopulse 1s ease-in-out infinite;}
+  #liveStatusBar{
+    display:none;align-items:center;justify-content:space-between;gap:10px;
+    padding:7px 16px;background:#FF3366;color:#fff;font-size:11px;font-weight:700;
+    flex-shrink:0;
+  }
+  #liveStatusBar.show{display:flex;}
+  #liveStopBtn{
+    background:rgba(0,0,0,0.25);color:#fff;border:none;border-radius:8px;
+    padding:5px 12px;font-size:10px;font-weight:800;cursor:pointer;touch-action:manipulation;
+  }
+  @media (max-width:400px){
+    #liveBtn span:not(.autoPulse){display:none;}
+    #liveBtn{padding:6px;}
+  }
   @media (max-width:360px){
     #autoBtn span:not(.autoPulse){display:none;}
     #autoBtn{padding:6px;}
@@ -592,6 +616,11 @@
     <span id="statusText">Offline Mode (Limited)</span>
   </div>
   <div class="barRight">
+    <div id="liveBtn" role="button" tabindex="0" aria-label="Toggle Live real-time interpreter mode" title="Continuous real-time simultaneous interpretation via Gemini Live">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 4a8 8 0 0 1 5.66 13.66l-1.42-1.42A6 6 0 0 0 12 6a6 6 0 0 0-4.24 10.24l-1.42 1.42A8 8 0 0 1 12 4zm0-4C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z"/></svg>
+      <span>LIVE</span>
+      <span class="autoPulse" id="livePulse"></span>
+    </div>
     <div id="autoBtn" role="button" tabindex="0" aria-label="Toggle Auto Chat hands-free mode" title="Hands-free back-and-forth: mic auto-restarts on the other side after each reply">
       <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
       <span>AUTO CHAT</span>
@@ -601,6 +630,10 @@
       <svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
     </div>
   </div>
+</div>
+<div id="liveStatusBar">
+  <span id="liveStatusText">⚡ Live Interpreter connecting…</span>
+  <button id="liveStopBtn">Stop</button>
 </div>
 
 <div id="modeTabs">
@@ -1353,6 +1386,199 @@ function stopSttManual(){
 ========================================================= */
 const holdRecordingState = {}; // side -> { stream, mediaRecorder, chunks, mimeType }
 
+/* =========================================================
+   LIVE MODE — real-time simultaneous interpretation via the
+   Gemini Live API (WebSocket, raw PCM audio streaming both ways).
+   This is a fundamentally different, lower-level pipeline than the
+   rest of the app (which uses simple HTTP calls) — it's the same
+   technology behind Gemini's own "Live" voice mode. Configured here
+   as a pure interpreter: it only translates what it hears, nothing else.
+
+   NOTE (v1): only works in "My Own Key" backend mode — the bundled
+   Secure Proxy (Cloudflare Worker) only relays simple HTTP requests,
+   not WebSocket streams. Also requires internet the whole time it's on.
+========================================================= */
+const liveState = {
+  ws: null,
+  connected: false,
+  micStream: null,
+  micContext: null,
+  micProcessor: null,
+  playbackContext: null,
+  nextPlayTime: 0,
+};
+
+function floatTo16BitPCM(float32Array){
+  const buffer = new ArrayBuffer(float32Array.length * 2);
+  const view = new DataView(buffer);
+  for(let i = 0, offset = 0; i < float32Array.length; i++, offset += 2){
+    const s = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return buffer;
+}
+function arrayBufferToBase64(buffer){
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for(let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function pcm16Base64ToAudioBuffer(base64, audioCtx, sampleRate){
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const view = new DataView(bytes.buffer);
+  const sampleCount = Math.floor(bytes.length / 2);
+  const buffer = audioCtx.createBuffer(1, sampleCount, sampleRate);
+  const channelData = buffer.getChannelData(0);
+  for(let i = 0; i < sampleCount; i++) channelData[i] = view.getInt16(i * 2, true) / 32768;
+  return buffer;
+}
+function scheduleLivePlayback(base64){
+  const ctx = liveState.playbackContext;
+  if(!ctx) return;
+  const buffer = pcm16Base64ToAudioBuffer(base64, ctx, 24000);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  const now = ctx.currentTime;
+  if(liveState.nextPlayTime < now) liveState.nextPlayTime = now;
+  source.start(liveState.nextPlayTime);
+  liveState.nextPlayTime += buffer.duration;
+}
+
+function liveInterpreterSystemPrompt(){
+  return `You are a real-time simultaneous interpreter for a live face-to-face conversation between two people speaking into the same device. `
+    + `One person speaks ${state.langA.name}, the other speaks ${state.langB.name}. `
+    + `Whenever you hear ${state.langA.name} being spoken, immediately speak the natural, fluent translation in ${state.langB.name} — nothing else. `
+    + `Whenever you hear ${state.langB.name} being spoken, immediately speak the natural, fluent translation in ${state.langA.name} — nothing else. `
+    + `Translate the way a professional human interpreter would say it, not word-for-word. `
+    + `Do NOT have a conversation, do NOT answer questions, do NOT add commentary, greetings, or explanations of any kind — output ONLY the translation of what was actually said. `
+    + `Wait for a natural pause or the end of a sentence before translating.`;
+}
+
+function updateLiveStatusText(text){
+  const el = document.getElementById('liveStatusText');
+  if(el) el.textContent = text;
+}
+
+async function startLiveMode(){
+  if(state.backendMode === 'proxy'){
+    showToast('Live Mode က "My Own Key" backend mode မှာသာ အလုပ်လုပ်ပါတယ် (v1) — Settings → Account ထဲမှာ ပြောင်းပေးပါ', 'warn');
+    return;
+  }
+  if(!state.apiKey){
+    showToast('Live Mode အတွက် AI Translation Key လိုအပ်ပါတယ်', 'warn');
+    return;
+  }
+  document.getElementById('liveBtn').classList.add('on');
+  document.getElementById('liveStatusBar').classList.add('show');
+  updateLiveStatusText('⚡ Live Interpreter connecting…');
+
+  try{
+    liveState.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }catch(e){
+    showToast('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်', 'error');
+    stopLiveMode();
+    return;
+  }
+
+  const ws = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${state.apiKey}`);
+  liveState.ws = ws;
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      setup: {
+        model: 'models/gemini-3.1-flash-live-preview',
+        generationConfig: { responseModalities: ['AUDIO'] },
+        systemInstruction: { parts: [{ text: liveInterpreterSystemPrompt() }] },
+        outputAudioTranscription: {},
+        inputAudioTranscription: {},
+      }
+    }));
+  };
+
+  ws.onerror = () => {
+    showToast('Live Mode connection error ဖြစ်သွားပါတယ်', 'error');
+  };
+
+  ws.onclose = () => {
+    if(liveState.connected) showToast('Live Mode connection ပြတ်တောက်သွားပါတယ်', 'warn');
+    stopLiveMode();
+  };
+
+  ws.onmessage = async (event) => {
+    let data = event.data;
+    if(data instanceof Blob) data = await data.text();
+    let msg;
+    try{ msg = JSON.parse(data); }catch(e){ return; }
+
+    if(msg.setupComplete){
+      liveState.connected = true;
+      updateLiveStatusText('⚡ Live — listening… (both sides can speak anytime)');
+      document.getElementById('liveBtn').classList.add('pulsing');
+      startLiveMicCapture();
+      return;
+    }
+
+    const sc = msg.serverContent;
+    if(!sc) return;
+
+    if(sc.interrupted){
+      liveState.nextPlayTime = liveState.playbackContext ? liveState.playbackContext.currentTime : 0;
+    }
+    if(sc.modelTurn && sc.modelTurn.parts){
+      for(const part of sc.modelTurn.parts){
+        const inline = part.inlineData || part.inline_data;
+        if(inline && inline.data) scheduleLivePlayback(inline.data);
+      }
+    }
+    if(sc.inputTranscription && sc.inputTranscription.text){
+      updateLiveStatusText('🎙️ ' + sc.inputTranscription.text);
+    }
+    if(sc.outputTranscription && sc.outputTranscription.text){
+      updateLiveStatusText('🔊 ' + sc.outputTranscription.text);
+    }
+  };
+}
+
+function startLiveMicCapture(){
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  liveState.micContext = new AudioCtx({ sampleRate: 16000 });
+  liveState.playbackContext = new AudioCtx({ sampleRate: 24000 });
+  liveState.nextPlayTime = 0;
+
+  const source = liveState.micContext.createMediaStreamSource(liveState.micStream);
+  liveState.micProcessor = liveState.micContext.createScriptProcessor(4096, 1, 1);
+  liveState.micProcessor.onaudioprocess = (e) => {
+    if(!liveState.connected || !liveState.ws || liveState.ws.readyState !== WebSocket.OPEN) return;
+    const pcm = floatTo16BitPCM(e.inputBuffer.getChannelData(0));
+    const b64 = arrayBufferToBase64(pcm);
+    liveState.ws.send(JSON.stringify({
+      realtimeInput: { audio: { data: b64, mimeType: `audio/pcm;rate=${liveState.micContext.sampleRate}` } }
+    }));
+  };
+  // Route through a silent gain node — some browsers require the processor
+  // to reach a destination to keep firing, but we don't want to hear our
+  // own raw mic input played back (that would cause feedback/echo).
+  const muteGain = liveState.micContext.createGain();
+  muteGain.gain.value = 0;
+  source.connect(liveState.micProcessor);
+  liveState.micProcessor.connect(muteGain);
+  muteGain.connect(liveState.micContext.destination);
+}
+
+function stopLiveMode(){
+  liveState.connected = false;
+  if(liveState.ws){ try{ liveState.ws.close(); }catch(e){} liveState.ws = null; }
+  if(liveState.micProcessor){ try{ liveState.micProcessor.disconnect(); }catch(e){} liveState.micProcessor = null; }
+  if(liveState.micContext){ try{ liveState.micContext.close(); }catch(e){} liveState.micContext = null; }
+  if(liveState.playbackContext){ try{ liveState.playbackContext.close(); }catch(e){} liveState.playbackContext = null; }
+  if(liveState.micStream){ try{ liveState.micStream.getTracks().forEach(t => t.stop()); }catch(e){} liveState.micStream = null; }
+  document.getElementById('liveBtn').classList.remove('on', 'pulsing');
+  document.getElementById('liveStatusBar').classList.remove('show');
+}
+
 function pickAudioMimeType(){
   if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
@@ -1648,6 +1874,71 @@ async function geminiFetch(model, payload){
   });
 }
 
+/**
+ * Streaming version: calls onChunk(textSoFar) every time more text arrives,
+ * so the UI can show words appearing progressively instead of a blank
+ * "translating…" bubble sitting there for several seconds. This is what
+ * makes the app feel fast even when total generation time is unchanged —
+ * the person sees something happening almost immediately.
+ *
+ * Falls back to a single non-streaming call automatically in Secure Proxy
+ * mode (the bundled Cloudflare Worker doesn't pass through streams) or if
+ * the browser/network doesn't support readable streams for some reason.
+ */
+async function geminiFetchStream(model, payload, onChunk){
+  const useProxy = state.backendMode === 'proxy' && state.proxyUrl;
+  if(useProxy || !window.ReadableStream){
+    const resp = await geminiFetch(model, payload);
+    if(!resp.ok) return { ok: false, status: resp.status, resp };
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if(text) onChunk(text);
+    return { ok: true, fullText: text, finishReason };
+  }
+
+  let resp;
+  try{
+    resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+      body: JSON.stringify(payload),
+    });
+  }catch(e){
+    return { ok: false, error: e };
+  }
+  if(!resp.ok || !resp.body){
+    return { ok: false, status: resp.status, resp };
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+  let finishReason = null;
+
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // last (possibly incomplete) line carries over to next read
+    for(const line of lines){
+      const trimmed = line.trim();
+      if(!trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.slice(5).trim();
+      if(!jsonStr || jsonStr === '[DONE]') continue;
+      try{
+        const obj = JSON.parse(jsonStr);
+        const piece = obj?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+        if(piece){ fullText += piece; onChunk(fullText); }
+        if(obj?.candidates?.[0]?.finishReason) finishReason = obj.candidates[0].finishReason;
+      }catch(e){ /* partial/incomplete JSON line — wait for more data */ }
+    }
+  }
+  return { ok: true, fullText, finishReason };
+}
+
 async function speakViaGemini(text, onDone){
   try{
     let url = ttsAudioCache.get(text);
@@ -1844,33 +2135,40 @@ async function handleTranslation(rawText, sender, isVoice){
         + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
         + `Message to translate now: "${rawText}"`;
 
-      const resp = await geminiFetch('gemini-3.5-flash', {
+      const streamResult = await geminiFetchStream('gemini-3.5-flash', {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.4,
           maxOutputTokens: 2048,
           thinkingConfig: { thinkingLevel: 'minimal' }
         }
+      }, (partialText) => {
+        // Progressive update: show words as they arrive instead of a blank
+        // "translating…" bubble sitting there for several seconds.
+        const liveMsg = state.messages.find(m => m.id === msgId);
+        if(liveMsg){
+          liveMsg.translatedText = partialText;
+          liveMsg.pending = false;
+          renderPanel('A'); renderPanel('B');
+        }
       });
 
-      if(resp.ok){
-        const data = await resp.json();
-        const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim();
-        const finishReason = data?.candidates?.[0]?.finishReason;
+      if(streamResult.ok){
+        const text = (streamResult.fullText || '').trim();
         if(text){
           translated = text;
           tmSave(sourceLang.code, targetLang.code, rawText, translated);
         }
         else {
-          errorDetail = `Empty response (finishReason: ${finishReason || 'unknown'})`;
-          console.error('Gemini empty response:', JSON.stringify(data));
+          errorDetail = `Empty response (finishReason: ${streamResult.finishReason || 'unknown'})`;
+          console.error('Gemini empty response for streamed request');
           await fallbackOffline('[Empty response]');
         }
       } else {
         let bodyText = '';
-        try{ bodyText = await resp.text(); }catch(e2){}
-        errorDetail = `API Error ${resp.status}: ${bodyText.slice(0, 200)}`;
-        console.error('Gemini API error:', resp.status, bodyText);
+        try{ bodyText = streamResult.resp ? await streamResult.resp.text() : ''; }catch(e2){}
+        errorDetail = `API Error ${streamResult.status || ''}: ${bodyText.slice(0, 200)}`;
+        console.error('Gemini API error:', streamResult.status, bodyText);
         await fallbackOffline('[Network Error]');
       }
     } catch(e){
@@ -2356,13 +2654,25 @@ function renderStatusBar(){
   autoBtn.classList.toggle('pulsing', state.autoConversation && isActive);
 }
 
-['autoBtn', 'settingsBtn'].forEach(id => {
+['autoBtn', 'settingsBtn', 'liveBtn'].forEach(id => {
   document.getElementById(id).addEventListener('keydown', (e) => {
     if(e.key === 'Enter' || e.key === ' '){
       e.preventDefault();
       document.getElementById(id).click();
     }
   });
+});
+
+document.getElementById('liveBtn').addEventListener('click', ()=>{
+  if(liveState.ws || liveState.connected){
+    stopLiveMode();
+  } else {
+    startLiveMode();
+  }
+});
+document.getElementById('liveStopBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  stopLiveMode();
 });
 
 document.getElementById('autoBtn').addEventListener('click', ()=>{
@@ -2804,14 +3114,23 @@ async function qtTranslate(rawText, queryLabel){
         + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
         + `Message: "${rawText}"`;
 
-      const resp = await geminiFetch('gemini-3.5-flash', {
+      const streamResult = await geminiFetchStream('gemini-3.5-flash', {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
+      }, (partialRaw) => {
+        const partialMatch = partialRaw.match(/TRANSLATION:\s*([\s\S]*)/i);
+        if(partialMatch){
+          const liveItem = state.qtHistory.find(i => i.id === id);
+          if(liveItem){
+            liveItem.translatedText = partialMatch[1].trim();
+            liveItem.pending = false;
+            qtRenderHistory();
+          }
+        }
       });
 
-      if(resp.ok){
-        const data = await resp.json();
-        const raw = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+      if(streamResult.ok){
+        const raw = streamResult.fullText || '';
         const langMatch = raw.match(/LANG:\s*(.*)/i);
         const transMatch = raw.match(/TRANSLATION:\s*([\s\S]*)/i);
         detectedLang = langMatch ? langMatch[1].trim() : '';
