@@ -114,7 +114,7 @@
     transition:background .15s,border-color .15s;
     touch-action:manipulation;
   }
-  #liveBtn svg{width:11px;height:11px;fill:#fff;}
+  #liveBtn svg{width:15px;height:15px;fill:#fff;}
   #liveBtn.on{background:#FF3366;border-color:#FF3366;color:#fff;}
   #liveBtn.on .autoPulse{display:block;background:#fff;animation:autopulse 1s ease-in-out infinite;}
   #liveStatusBar{
@@ -138,6 +138,59 @@
   }
 
   /* ===== Panels ===== */
+  #homeBtn{
+    display:none;background:none;border:none;padding:2px;cursor:pointer;
+    touch-action:manipulation;flex-shrink:0;
+  }
+  #homeBtn svg{width:15px;height:15px;}
+  #homeBtn.show{display:flex;}
+
+  /* ===== Home screen ===== */
+  #homeScreen{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px 20px;gap:26px;overflow-y:auto;
+  }
+  .homeLogo{text-align:center;}
+  .homeLogo h1{font-size:18px;margin:10px 0 4px;}
+  .homeLogo p{font-size:12px;color:#888;margin:0;}
+  .homeGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:420px;}
+  .homeCard{
+    background:var(--card);border:1px solid var(--border2);border-radius:16px;
+    padding:16px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+    cursor:pointer;touch-action:manipulation;text-align:left;
+    box-shadow:0 3px 10px rgba(0,0,0,0.3);
+  }
+  .homeCard:active{background:rgba(0,229,255,0.08);border-color:var(--cyan);}
+  .homeCard svg{width:26px;height:26px;}
+  .homeCardTitle{font-size:13.5px;font-weight:800;}
+  .homeCardDesc{font-size:10.5px;color:#999;line-height:1.4;}
+
+  /* ===== Live Mode dedicated screen ===== */
+  #livePanel{display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);}
+  .liveLangPickers{display:flex;flex-direction:column;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .liveLangRow{display:flex;align-items:center;gap:10px;}
+  .liveLangTag{font-size:11px;font-weight:800;flex-shrink:0;width:120px;}
+  #liveTranscript{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column-reverse;-webkit-overflow-scrolling:touch;}
+  .liveControlDock{
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    padding:20px 16px calc(20px + env(safe-area-inset-bottom));flex-shrink:0;
+  }
+  .liveBigCircle{
+    width:74px;height:74px;border-radius:50%;border:none;background:#FF3366;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    touch-action:manipulation;box-shadow:0 4px 16px rgba(255,51,102,0.4);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .liveBigCircle.on{box-shadow:0 0 0 10px rgba(255,51,102,0.25);transform:scale(1.05);}
+  .liveTranscriptLine{
+    display:flex;gap:8px;padding:9px 12px;margin-bottom:6px;border-radius:10px;
+    font-size:12.5px;line-height:1.4;background:var(--surface);
+  }
+  .liveTranscriptLine.heard{border-left:3px solid var(--cyan);}
+  .liveTranscriptLine.spoken{border-left:3px solid var(--red);color:#ccc;}
+  .liveTranscriptLine.system{color:#888;font-style:italic;font-size:11px;background:transparent;}
+  .liveLineIcon{flex-shrink:0;}
+
   .panel{
     flex:1;
     display:flex;
@@ -555,7 +608,7 @@
     flex:1;background:var(--surface);color:#fff;border:1px solid var(--border2);
     border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;font-family:inherit;
   }
-  #qtHistory{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  #qtHistory{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column-reverse;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
   #qtSuggestions{
     display:flex;gap:8px;overflow-x:auto;padding:10px 12px 4px;flex-shrink:0;
     -webkit-overflow-scrolling:touch;
@@ -612,6 +665,9 @@
 
 <div id="statusBar">
   <div class="left">
+    <button id="homeBtn" aria-label="Back to home" title="Back to home screen">
+      <svg viewBox="0 0 24 24"><path fill="#fff" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    </button>
     <svg id="statusIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.28.85 4.36 2.25 5.95L12 12l6.75 5.95C20.15 16.36 21 14.28 21 12c0-4.97-4.03-9-9-9z"/></svg>
     <span id="statusText">Offline Mode (Limited)</span>
   </div>
@@ -636,9 +692,34 @@
   <button id="liveStopBtn">Stop</button>
 </div>
 
-<div id="modeTabs">
-  <button class="modeTab active" data-mode="chat">💬 Conversation</button>
-  <button class="modeTab" data-mode="quick">🔍 Quick Translate</button>
+<div id="homeScreen">
+  <div class="homeLogo">
+    <svg viewBox="0 0 24 24" width="44" height="44"><path fill="#00E5FF" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
+    <h1>Walkie-Talkie Translator</h1>
+    <p>ဘယ်လို သုံးချင်ပါသလဲ?</p>
+  </div>
+  <div class="homeGrid">
+    <button class="homeCard" data-view="conversation">
+      <svg viewBox="0 0 24 24"><path fill="#00E5FF" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      <div class="homeCardTitle">💬 Conversation</div>
+      <div class="homeCardDesc">Face-to-face walkie-talkie style, two people, rotated panel</div>
+    </button>
+    <button class="homeCard" data-view="quick">
+      <svg viewBox="0 0 24 24"><path fill="#00E5FF" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <div class="homeCardTitle">🔍 Quick Translate</div>
+      <div class="homeCardDesc">Paste text, scan a photo, or speak — translate for yourself</div>
+    </button>
+    <button class="homeCard" data-view="live">
+      <svg viewBox="0 0 24 24"><path fill="#FF3366" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
+      <div class="homeCardTitle">⚡ Live</div>
+      <div class="homeCardDesc">Real-time simultaneous interpretation — no taps needed</div>
+    </button>
+    <button class="homeCard" data-view="settings">
+      <svg viewBox="0 0 24 24"><path fill="#00E5FF" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.58-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.58.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.3.58.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.17.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .58-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+      <div class="homeCardTitle">⚙️ Settings</div>
+      <div class="homeCardDesc">API key, voice, appearance, and more</div>
+    </button>
+  </div>
 </div>
 
 <div id="panelA" class="panel"></div>
@@ -649,6 +730,26 @@
   </div>
 </div>
 <div id="panelB" class="panel"></div>
+
+<div id="livePanel">
+  <div class="liveLangPickers">
+    <div class="liveLangRow">
+      <span class="liveLangTag" style="color:var(--cyan);">🅰️ Person A speaks</span>
+      <select id="liveLangA" class="qtLangSelect"></select>
+    </div>
+    <div class="liveLangRow">
+      <span class="liveLangTag" style="color:var(--red);">🅱️ Person B speaks</span>
+      <select id="liveLangB" class="qtLangSelect"></select>
+    </div>
+  </div>
+  <div id="liveTranscript"><div class="qtEmpty">⚡ Start ကိုနှိပ်ပြီး စကားပြောလိုက်ရင် တစ်ဘက်စီရဲ့ ဘာသာစကားနဲ့ တစ်ချိန်တည်း ဘာသာပြန်ပေးပါလိမ့်မယ်။<br>Tap/hold မလိုပါ — ပြောရုံပါပဲ။</div></div>
+  <div class="liveControlDock">
+    <button id="liveStartBtn" class="liveBigCircle">
+      <svg viewBox="0 0 24 24" width="30" height="30"><path fill="#fff" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 13c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74A7.93 7.93 0 0 0 4 13c0 4.42 3.58 8 8 8v4l5-5-5-5v4z"/></svg>
+    </button>
+    <div class="pttHint" id="liveBigHint">Tap to start Live Interpreter</div>
+  </div>
+</div>
 
 <div id="quickPanel">
   <div class="qtHeader">
@@ -1278,6 +1379,7 @@ const state = {
   saveHistory: false,
   voiceEngine: 'auto',
   pttMode: {A: false, B: false},
+  currentView: 'home',
   backendMode: 'key',
   proxyUrl: '',
 };
@@ -1473,7 +1575,10 @@ async function startLiveMode(){
   }
   document.getElementById('liveBtn').classList.add('on');
   document.getElementById('liveStatusBar').classList.add('show');
+  document.getElementById('liveStartBtn').classList.add('on');
+  document.getElementById('liveBigHint').textContent = 'Connecting…';
   updateLiveStatusText('⚡ Live Interpreter connecting…');
+  liveAddTranscriptLine('system', 'Connecting…');
 
   try{
     liveState.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1515,7 +1620,10 @@ async function startLiveMode(){
 
     if(msg.setupComplete){
       liveState.connected = true;
-      updateLiveStatusText('⚡ Live — listening… (both sides can speak anytime)');
+      const statusMsg = '⚡ Live — listening… (both sides can speak anytime)';
+      updateLiveStatusText(statusMsg);
+      document.getElementById('liveBigHint').textContent = 'Listening… tap to stop';
+      liveAddTranscriptLine('system', 'Connected — start speaking, either language.');
       document.getElementById('liveBtn').classList.add('pulsing');
       startLiveMicCapture();
       return;
@@ -1535,12 +1643,52 @@ async function startLiveMode(){
     }
     if(sc.inputTranscription && sc.inputTranscription.text){
       updateLiveStatusText('🎙️ ' + sc.inputTranscription.text);
+      liveAddTranscriptLine('heard', sc.inputTranscription.text);
     }
     if(sc.outputTranscription && sc.outputTranscription.text){
       updateLiveStatusText('🔊 ' + sc.outputTranscription.text);
+      liveAddTranscriptLine('spoken', sc.outputTranscription.text);
     }
   };
 }
+
+function liveInitLangSelects(){
+  const selA = document.getElementById('liveLangA');
+  const selB = document.getElementById('liveLangB');
+  if(!selA || !selB) return;
+  selA.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
+  selB.innerHTML = LANGUAGES.map(l => `<option value="${l.code}">${l.flag} ${l.name}</option>`).join('');
+  selA.value = state.langA.code;
+  selB.value = state.langB.code;
+  selA.addEventListener('change', (e) => {
+    state.langA = langByCode(e.target.value);
+    renderPanel('A'); renderPanel('B');
+  });
+  selB.addEventListener('change', (e) => {
+    state.langB = langByCode(e.target.value);
+    renderPanel('A'); renderPanel('B');
+  });
+}
+
+let liveTranscriptHasContent = false;
+function liveAddTranscriptLine(kind, text){
+  const el = document.getElementById('liveTranscript');
+  if(!el) return;
+  if(!liveTranscriptHasContent){ el.innerHTML = ''; liveTranscriptHasContent = true; }
+  const line = document.createElement('div');
+  line.className = 'liveTranscriptLine ' + kind;
+  const icon = kind === 'heard' ? '🎙️' : kind === 'spoken' ? '🔊' : 'ℹ️';
+  line.innerHTML = `<span class="liveLineIcon">${icon}</span><span>${escapeHtml(text)}</span>`;
+  el.insertBefore(line, el.firstChild);
+}
+
+document.getElementById('liveStartBtn').addEventListener('click', () => {
+  if(liveState.ws || liveState.connected){
+    stopLiveMode();
+  } else {
+    startLiveMode();
+  }
+});
 
 function startLiveMicCapture(){
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1577,6 +1725,10 @@ function stopLiveMode(){
   if(liveState.micStream){ try{ liveState.micStream.getTracks().forEach(t => t.stop()); }catch(e){} liveState.micStream = null; }
   document.getElementById('liveBtn').classList.remove('on', 'pulsing');
   document.getElementById('liveStatusBar').classList.remove('show');
+  const startBtn = document.getElementById('liveStartBtn');
+  const hint = document.getElementById('liveBigHint');
+  if(startBtn) startBtn.classList.remove('on');
+  if(hint) hint.textContent = 'Tap to start Live Interpreter';
 }
 
 function pickAudioMimeType(){
@@ -3021,17 +3173,34 @@ function qtPopulateSelects(){
   qtRenderSuggestions();
 }
 
-document.querySelectorAll('.modeTab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.modeTab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const mode = tab.dataset.mode;
-    const isQuick = mode === 'quick';
-    document.getElementById('panelA').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('divider').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('panelB').style.display = isQuick ? 'none' : 'flex';
-    document.getElementById('quickPanel').style.display = isQuick ? 'flex' : 'none';
+/* =========================================================
+   NAVIGATION — home/launcher screen with 3 modes + settings
+========================================================= */
+function showView(view){
+  state.currentView = view;
+  document.getElementById('homeScreen').style.display = view === 'home' ? 'flex' : 'none';
+  document.getElementById('panelA').style.display = view === 'conversation' ? 'flex' : 'none';
+  document.getElementById('divider').style.display = view === 'conversation' ? 'flex' : 'none';
+  document.getElementById('panelB').style.display = view === 'conversation' ? 'flex' : 'none';
+  document.getElementById('quickPanel').style.display = view === 'quick' ? 'flex' : 'none';
+  document.getElementById('livePanel').style.display = view === 'live' ? 'flex' : 'none';
+  document.getElementById('homeBtn').classList.toggle('show', view !== 'home');
+}
+
+document.querySelectorAll('.homeCard').forEach(card => {
+  card.addEventListener('click', () => {
+    const view = card.dataset.view;
+    vibrate(10);
+    if(view === 'settings'){
+      document.getElementById('settingsBtn').click();
+      return;
+    }
+    showView(view);
   });
+});
+document.getElementById('homeBtn').addEventListener('click', () => {
+  vibrate(10);
+  showView('home');
 });
 
 document.getElementById('qtTargetLang').addEventListener('change', (e) => { state.qtTargetCode = e.target.value; });
@@ -3570,6 +3739,8 @@ renderPanel('A');
 renderPanel('B');
 qtPopulateDomains();
 qtRenderSuggestions();
+showView('home');
+liveInitLangSelects();
 
 // First-launch onboarding: explain the rotated face-to-face panel design.
 try{
