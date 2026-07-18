@@ -1,7 +1,7 @@
 /* =========================================================
    LANGUAGES
 ========================================================= */
-const APP_VERSION = '2026.07.17-modular';
+const APP_VERSION = '2026.07.18-fix3';
 
 function showToast(message, type){
   const container = document.getElementById('toastContainer');
@@ -1649,8 +1649,11 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('versionFooter').textContent = 'Walkie-Talkie Translator · v' + APP_VERSION;
   const usage = getApiUsageToday();
   const modelLines = Object.entries(usage.byModel || {}).map(([m, c]) => `• ${m}: ${c} calls`).join('\n');
-  document.getElementById('apiUsageBox').textContent =
-    `Total calls today: ${usage.count || 0}` + (modelLines ? `\n${modelLines}` : '\n(မခေါ်ရသေးပါ)');
+  const usageBox = document.getElementById('apiUsageBox');
+  if(usageBox){
+    usageBox.textContent =
+      `Total calls today: ${usage.count || 0}` + (modelLines ? `\n${modelLines}` : '\n(မခေါ်ရသေးပါ)');
+  }
   clearHistoryArmed = false;
   clearTimeout(clearHistoryResetTimer);
   const chBtn = document.getElementById('clearHistoryBtn');
