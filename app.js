@@ -1,7 +1,13 @@
+/* ==========================================================
+   Walkie-Talkie Translator — app logic
+   Depends on data.js (LANGUAGES, PHRASEBOOK, PHRASES, WORDS) being
+   loaded first.
+========================================================== */
+
 /* =========================================================
    LANGUAGES
 ========================================================= */
-const APP_VERSION = '2026.07.18-fix3';
+const APP_VERSION = '2026.07.19-r5';
 
 function showToast(message, type){
   const container = document.getElementById('toastContainer');
@@ -13,6 +19,175 @@ function showToast(message, type){
     el.classList.add('fadeOut');
     setTimeout(() => el.remove(), 300);
   }, 4200);
+}
+
+// Turns a raw HTTP status (+ optionally the response body, only used for
+// console logging by the caller) into a short, friendly Burmese message.
+// The raw JSON never reaches the chat bubble — only this classification does.
+/**
+ * Free fallback translation via MyMemory — no API key needed at all, works
+ * directly from the browser (CORS-enabled). Used automatically when Gemini
+ * is unreachable or every configured key has hit its quota. Quality is
+ * noticeably below Gemini (crowdsourced translation memory + basic MT),
+ * but it handles arbitrary sentences — unlike the offline dictionary,
+ * which only matches known phrases. Returns null on any failure so the
+ * caller can fall through to the offline dictionary as the last resort.
+ */
+async function translateViaMyMemory(text, sourceCode, targetCode){
+  if(!text || !text.trim()) return null;
+  try{
+    const params = new URLSearchParams({
+      q: text.slice(0, 490), // MyMemory's free tier caps ~500 bytes per request
+      langpair: `${sourceCode}|${targetCode}`,
+    });
+    if(state.myMemoryEmail) params.set('de', state.myMemoryEmail);
+    const resp = await fetch(`https://api.mymemory.translated.net/get?${params.toString()}`);
+    if(!resp.ok) return null;
+    const data = await resp.json();
+    const result = data && data.responseData && data.responseData.translatedText;
+    if(!result) return null;
+    // MyMemory returns plain-English warning strings (not an HTTP error)
+    // when a language pair is unsupported or the daily limit is hit.
+    if(/MYMEMORY WARNING|QUERY LENGTH LIMIT|INVALID (SOURCE|TARGET) LANGUAGE|AMOUNT OF WORDS/i.test(result)) return null;
+    // MyMemory's match score (0–1) reflects how close the crowdsourced TM
+    // entry actually is to the input. Low-confidence matches can come back
+    // completely unrelated to what was said (seen in testing: an unrelated
+    // English sentence for ordinary Burmese conversation) — showing that as
+    // if it were a real translation is worse than falling through to the
+    // offline dictionary, so reject anything below a reasonable bar.
+    const match = Number(data?.responseData?.match);
+    if(!isNaN(match) && match < 0.6) return null;
+    return result;
+  }catch(e){
+    console.error('MyMemory fallback failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Shared fallback chain used whenever Gemini is unavailable/exhausted:
+ * try free key-less MyMemory first (handles arbitrary sentences), then the
+ * offline phrase dictionary as the last resort. sourceCode can be
+ * 'autodetect' for Quick Translate, where the source language isn't known.
+ */
+async function fallbackTranslateChain(text, sourceCode, targetCode){
+  if(state.myMemoryEnabled && !state.offlineForced){
+    const mm = await translateViaMyMemory(text, sourceCode, targetCode);
+    if(mm) return { text: mm, approx: true, usedMyMemory: true };
+  }
+  if(sourceCode !== 'autodetect'){
+    const off = offlineTranslate(text, sourceCode, targetCode);
+    if(off) return { text: off.text, approx: off.approx, usedMyMemory: false };
+  } else {
+    // Quick Translate doesn't know the source language — try the offline
+    // dictionary assuming each known language as a possible source.
+    for(const l of LANGUAGES){
+      if(l.code === targetCode) continue;
+      const off = offlineTranslate(text, l.code, targetCode);
+      if(off) return { text: off.text, approx: off.approx, usedMyMemory: false };
+    }
+  }
+  return null;
+}
+
+function buildTranslationPrompt(text, sourceLang, targetLang){
+  return `You are an expert interpreter helping two people communicate naturally in a live, real-time conversation. `
+    + `Translate the following message from ${sourceLang.name} into ${targetLang.name}.\n\n`
+    + `IMPORTANT: Do NOT translate word-for-word. Understand the full meaning, tone, and intent of the message, `
+    + `then express it the way a native ${targetLang.name} speaker would naturally say it out loud in this real-life situation `
+    + `(everyday / workplace conversation).\n\n`
+    + `Tone: ${toneInstruction()}\n`
+    + `${glossaryInstruction()}`
+    + `${conversationContextBlock()}`
+    + `\nRules:\n`
+    + `- If translating into Burmese, use natural, everyday spoken Burmese (not overly formal/literary), unless Tone above says otherwise.\n`
+    + `- If translating into Chinese, use the polite/respectful form (您) unless the tone is clearly casual.\n`
+    + `- If translating into Thai, include natural polite particles (ครับ/ค่ะ) where appropriate.\n`
+    + `- If translating into English, use natural, conversational English.\n\n`
+    + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
+    + `Message to translate now: "${text}"`;
+}
+
+/**
+ * Auto-retry queue for messages that failed purely because there was no
+ * connectivity (as opposed to a quota/server error, which needs waiting
+ * out rather than an immediate retry). Queued silently, then retranslated
+ * automatically the moment the browser fires 'online' — no user action
+ * needed, and the message bubble updates in place once a real translation
+ * comes back.
+ */
+function queueForRetry(msgId, sender, rawText, sourceCode, targetCode){
+  if(state.retryQueue.some(q => q.msgId === msgId)) return;
+  state.retryQueue.push({ msgId, sender, rawText, sourceCode, targetCode });
+}
+
+async function processRetryQueue(){
+  if(!state.retryQueue.length || !hasBackend()) return;
+  const queue = state.retryQueue.splice(0, state.retryQueue.length);
+  showToast(`🔄 Internet ပြန်ရလာလို့ message ${queue.length} ခု ပြန်ဘာသာပြန်နေပါတယ်...`, 'info');
+  for(const item of queue){
+    const msg = state.messages.find(m => m.id === item.msgId);
+    if(!msg) continue; // message no longer exists (history cleared etc.)
+    const sourceLang = langByCode(item.sourceCode);
+    const targetLang = langByCode(item.targetCode);
+    if(!sourceLang || !targetLang) continue;
+    try{
+      const resp = await geminiFetch('gemini-3.6-flash', {
+        contents: [{ parts: [{ text: buildTranslationPrompt(item.rawText, sourceLang, targetLang) }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
+      });
+      if(resp.ok){
+        const data = await resp.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if(text){
+          msg.translatedText = text;
+          msg.approx = false;
+          msg.usedOffline = false;
+          msg.usedMyMemory = false;
+          msg.connectivityFailure = false;
+          msg.errorDetail = '';
+          tmSave(item.sourceCode, item.targetCode, item.rawText, text);
+          continue;
+        }
+      }
+      state.retryQueue.push(item); // still failing — try again on the next 'online' event
+    }catch(e){
+      state.retryQueue.push(item);
+    }
+  }
+  renderPanel('A'); renderPanel('B');
+}
+
+window.addEventListener('online', () => { processRetryQueue(); });
+
+function friendlyApiError(status){
+  if(status === 429) return '⏳ AI quota ကုန်သွားပါပြီ (daily limit) — offline dictionary နဲ့ ပြန်ပြထားပါတယ်';
+  if(status === 401 || status === 403) return '🔑 API key မှားနေနိုင်ပါတယ် — Settings → Account မှာ key ပြန်စစ်ပေးပါ';
+  if(status >= 500) return '☁️ Google AI server ခဏပြဿနာ ရှိနေပါတယ် — ခဏနေ ထပ်စမ်းကြည့်ပါ';
+  return '⚠️ AI ဆက်သွယ်လို့ မရပါ — offline dictionary နဲ့ ပြန်ပြထားပါတယ်';
+}
+
+
+function tmNormalize(text){
+  return text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[။၊.,!?]+$/g, '');
+}
+function tmKey(srcCode, tgtCode, text){
+  return srcCode + '|' + tgtCode + '|' + tmNormalize(text);
+}
+function tmLookup(srcCode, tgtCode, text){
+  return translationMemory[tmKey(srcCode, tgtCode, text)] || null;
+}
+function tmSave(srcCode, tgtCode, original, translated){
+  if(!original || !translated) return;
+  translationMemory[tmKey(srcCode, tgtCode, original)] = translated;
+  try{
+    const keys = Object.keys(translationMemory);
+    // Keep the memory from growing without bound on very long-lived installs.
+    if(keys.length > 600){
+      keys.slice(0, keys.length - 600).forEach(k => delete translationMemory[k]);
+    }
+    localStorage.setItem('wt_translationMemory', JSON.stringify(translationMemory));
+  }catch(e){ /* storage full or unavailable — memory still works for this session */ }
 }
 
 function offlineTranslate(rawText, srcCode, tgtCode){
@@ -91,6 +266,13 @@ const state = {
   langB: langByCode('my'),
   messages: [], // newest first
   apiKey: '',
+  apiKeys: ['', '', ''], // up to 3 keys; state.apiKey mirrors apiKeys[apiKeyIndex]
+  apiKeyIndex: 0,
+  myMemoryEnabled: true,
+  myMemoryEmail: '',
+  exhaustedKeysToday: {},
+  retryQueue: [], // messages that failed purely due to no connectivity, retried automatically when back online
+  uiLanguage: 'my', // app interface language — separate from langA/langB (the translation feature)
   offlineForced: false,
   listening: {A:false, B:false},
   translating: {A:false, B:false},
@@ -104,13 +286,86 @@ const state = {
   glossary: '',
   saveHistory: false,
   voiceEngine: 'auto',
-  pttMode: {A: false, B: false},
   currentView: 'home',
   backendMode: 'key',
   proxyUrl: '',
 };
 
+// Walks every element tagged with data-i18n / data-i18n-placeholder and
+// updates its text to the current UI language. Called on load and whenever
+// the person changes the language in the home-screen dropdown.
+function applyUILanguage(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.documentElement.lang = state.uiLanguage;
+}
+
+document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
+  state.uiLanguage = e.target.value;
+  try{ localStorage.setItem('wt_uiLanguage', state.uiLanguage); }catch(err){}
+  applyUILanguage();
+});
+
 function otherSide(side){ return side === 'A' ? 'B' : 'A'; }
+
+/**
+ * Gboard-style "voice typing" for a text field: tapping the mic dictates
+ * INTO the box (live, word-by-word) instead of immediately translating —
+ * the person can review and edit before pressing Send. This is separate
+ * from the tap-mic/Hold-to-Talk buttons, which translate right away; this
+ * one is for when accuracy matters enough to want a last look first.
+ * Free — same on-device SpeechRecognition as the rest of the app.
+ */
+function attachDictation(inputEl, micBtnEl, getLang){
+  if(!SpeechRec){ micBtnEl.style.display = 'none'; return; }
+  let rec = null;
+  let listening = false;
+  let baseValue = '';
+  let finalText = '';
+
+  micBtnEl.addEventListener('click', () => {
+    if(listening){ try{ rec.stop(); }catch(e){} return; }
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
+    const lang = getLang();
+    try{
+      rec = new SpeechRec();
+      rec.lang = lang.ttsLocale;
+      rec.continuous = true;
+      rec.interimResults = true;
+      baseValue = inputEl.value ? inputEl.value.trim() + ' ' : '';
+      finalText = '';
+      listening = true;
+      micBtnEl.classList.add('dictating');
+      rec.onresult = (e) => {
+        let interim = '';
+        for(let i = e.resultIndex; i < e.results.length; i++){
+          if(e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
+          else interim += e.results[i][0].transcript;
+        }
+        inputEl.value = (baseValue + finalText + interim).trim();
+      };
+      rec.onerror = (e) => {
+        if(e.error === 'not-allowed' || e.error === 'permission-denied'){
+          showToast('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။', 'error');
+        }
+      };
+      rec.onend = () => {
+        listening = false;
+        micBtnEl.classList.remove('dictating');
+      };
+      rec.start();
+    }catch(e){
+      listening = false;
+      micBtnEl.classList.remove('dictating');
+    }
+  });
+}
+
+
 
 /* =========================================================
    SPEECH: STT + TTS (Web Speech API)
@@ -141,6 +396,28 @@ function pickVoice(localeCode){
   if(!v) v = cachedVoices.find(v => v.lang.split('-')[0] === localeCode.split('-')[0]);
   return v || null;
 }
+
+// Lets the person directly see (in Settings → Voice) whether the phone has
+// found a usable Myanmar voice — instead of guessing why audio does or
+// doesn't cost an API call.
+function updateVoiceDiag(){
+  const el = document.getElementById('voiceDiag');
+  if(!el) return;
+  const myLang = langByCode('my') || { ttsLocale: 'my-MM' };
+  const v = pickVoice(myLang.ttsLocale);
+  el.textContent = v
+    ? `✅ ဖုန်းမှာ မြန်မာ voice တွေ့ပါတယ် ("${v.name}") — Auto/Device mode မှာ API မကုန်ဘဲ အသံထွက်ပါလိမ့်မယ်`
+    : '⚠️ ဖုန်းမှာ မြန်မာ voice မတွေ့သေးပါ — Settings → System → Text-to-speech output မှာ preferred engine ကို SM Myanmar TTS ပြောင်းထားလား စစ်ကြည့်ပါ';
+}
+
+document.getElementById('testVoiceBtn')?.addEventListener('click', () => {
+  const myLang = langByCode('my') || { ttsLocale: 'my-MM', name: 'Myanmar' };
+  const sample = 'မင်္ဂလာပါ၊ ဒါက အသံစမ်းသပ်ချက်ပါ';
+  const engine = state.voiceEngine || 'auto';
+  const willUseDevice = engine === 'device' || (engine === 'auto' && pickVoice(myLang.ttsLocale));
+  showToast(willUseDevice ? '📱 Device voice ကို စမ်းနေပါတယ်...' : '🤖 AI voice ကို စမ်းနေပါတယ် (API 1 ကြိမ်သုံးပါမယ်)...', 'info');
+  speak(sample, myLang);
+});
 
 function startStt(side){
   if(!recognition){
@@ -203,14 +480,14 @@ function stopSttManual(){
 }
 
 /* =========================================================
-   HOLD-TO-TALK via MediaRecorder + Gemini audio input.
-   Web Speech API's "continuous" mode is well known to be unreliable on
-   Android Chrome (sessions end unexpectedly, results get lost). Instead,
-   Hold-to-Talk just records the raw audio for however long the button is
-   held (like a WeChat voice message), then sends that audio straight to
-   Gemini on release — Gemini transcribes AND translates it in one call.
-   This is far more robust: it doesn't depend on the browser's flaky
-   speech-recognition engine at all for the actual translation result.
+   HOLD-TO-TALK (Conversation screen, A/B)
+   Hold the mic → free on-device SpeechRecognition transcribes live,
+   writing straight into the visible text field as you speak (Gboard-style)
+   → release → whatever's in the field is sent immediately. The language
+   for each side is already known (state.langA/state.langB), so there's no
+   need to send audio to Gemini just to figure out what was said.
+   Quick Translate's Hold-to-Talk is different (see startHoldRecordingAudio
+   below) because it doesn't know the source language in advance.
 ========================================================= */
 const holdRecordingState = {}; // side -> { stream, mediaRecorder, chunks, mimeType }
 
@@ -299,6 +576,12 @@ async function startLiveMode(){
     showToast('Live Mode အတွက် AI Translation Key လိုအပ်ပါတယ်', 'warn');
     return;
   }
+  try{
+    if(!localStorage.getItem('wt_liveKeyWarningSeen')){
+      showToast('⚠️ Live Mode မှာ AI Translation Key ကို Google ဆီ တိုက်ရိုက် ချိတ်ဆက်ဖို့ အသုံးပြုပါတယ် — public/shared device မှာ သတိထားပါ', 'warn');
+      localStorage.setItem('wt_liveKeyWarningSeen', '1');
+    }
+  }catch(e){}
   document.getElementById('liveBtn').classList.add('on');
   document.getElementById('liveStatusBar').classList.add('show');
   document.getElementById('liveStartBtn').classList.add('on');
@@ -464,7 +747,68 @@ function pickAudioMimeType(){
   return '';
 }
 
-async function startHoldRecording(side){
+// ---- Conversation screen (A/B) Hold-to-Talk: free, on-device transcription ----
+// The language spoken on each side is already known (state.langA/state.langB),
+// so there's no need to send audio to Gemini just to figure out what was
+// said — the same free SpeechRecognition engine the tap-mic button already
+// uses can transcribe it, and only the resulting TEXT (much cheaper, and
+// reuses the existing cache/streaming/throttle path) goes to the API.
+function startHoldRecording(side){
+  if(side === 'QT') return startHoldRecordingAudio(side);
+  if(!SpeechRec){
+    showToast('ဒီ browser မှာ voice recognition ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။', 'error');
+    return;
+  }
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  const lang = side === 'A' ? state.langA : state.langB;
+  const inputEl = document.getElementById('input'+side);
+  try{
+    const rec = new SpeechRec();
+    rec.lang = lang.ttsLocale;
+    rec.continuous = true;
+    rec.interimResults = true;
+    let finalText = '';
+    rec.onresult = (e) => {
+      let interim = '';
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        if(e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
+        else interim += e.results[i][0].transcript;
+      }
+      if(inputEl) inputEl.value = (finalText + interim).trim();
+    };
+    rec.onerror = (e) => {
+      if(e.error === 'not-allowed' || e.error === 'permission-denied'){
+        showToast('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။ Browser setting ထဲမှာ mic ခွင့်ပြုပေးပါ။', 'error');
+      }
+    };
+    holdRecordingState[side] = { rec, getFinalText: () => finalText.trim() };
+    rec.start();
+  }catch(e){
+    console.error('Hold-to-Talk speech recognition failed to start:', e);
+    showToast('Microphone ခွင့်ပြုချက် လိုအပ်ပါတယ်။', 'error');
+  }
+}
+
+function stopHoldRecording(side){
+  if(side === 'QT') return stopHoldRecordingAudio(side);
+  const r = holdRecordingState[side];
+  if(!r) return;
+  const finish = () => {
+    const text = r.getFinalText();
+    delete holdRecordingState[side];
+    // handleTranslation re-renders the panel (which naturally clears the
+    // input), so nothing left over to wipe manually here.
+    if(text) handleTranslation(text, side, true);
+  };
+  r.rec.onend = finish;
+  try{ r.rec.stop(); }catch(e){ finish(); }
+}
+
+// ---- Quick Translate Hold-to-Talk: Gemini audio (needs language auto-detect) ----
+// QT doesn't know what language you're about to speak, and SpeechRecognition
+// has no reliable auto-detect — only sending the audio to Gemini can figure
+// out the language AND transcribe it in one pass. This path is unchanged.
+async function startHoldRecordingAudio(side){
   if(!window.MediaRecorder){
     showToast('ဒီ browser မှာ voice recording ကို support မလုပ်ပါ။ Chrome ကို သုံးကြည့်ပါ။', 'error');
     return;
@@ -485,7 +829,7 @@ async function startHoldRecording(side){
   }
 }
 
-function stopHoldRecording(side){
+function stopHoldRecordingAudio(side){
   const r = holdRecordingState[side];
   if(!r){ clearHoldCaption(side); return; }
   updateHoldCaption(side, '⏳ Processing...');
@@ -499,7 +843,6 @@ function stopHoldRecording(side){
       return;
     }
     if(side === 'QT') qtHandleVoiceHold(blob);
-    else handleVoiceHold(side, blob);
   };
 
   if(r.mediaRecorder.state === 'inactive'){
@@ -510,109 +853,6 @@ function stopHoldRecording(side){
   try{ r.mediaRecorder.stop(); }catch(e){ finish(new Blob(r.chunks, { type: r.mimeType })); }
 }
 
-async function handleVoiceHold(side, blob){
-  if(state.offlineForced || !hasBackend()){
-    showToast('Hold-to-Talk အတွက် AI Translation Key/Internet လိုအပ်ပါတယ်', 'warn');
-    clearHoldCaption(side);
-    return;
-  }
-  const sourceLang = side === 'A' ? state.langA : state.langB;
-  const targetLang = side === 'A' ? state.langB : state.langA;
-  state.translating[side] = true;
-
-  const msgId = Date.now().toString();
-  state.messages.unshift({
-    id: msgId, sender: side, originalText: '(transcribing voice…)', translatedText: '',
-    isVoice: true, approx: false, usedOffline: false, pending: true, timestamp: Date.now(),
-  });
-  renderPanel('A'); renderPanel('B');
-  clearHoldCaption(side);
-
-  try{
-    const base64 = await fileToBase64(blob);
-    const prompt = `Listen to this audio clip — someone speaking in ${sourceLang.name} (it could be a different language, detect it). `
-      + `Step 1: Transcribe exactly what they said. `
-      + `Step 2: Translate it into natural, fluent, native-sounding ${targetLang.name} — the full meaning and intent the way a native speaker would actually say it, NOT word-for-word. `
-      + `Tone: ${toneInstruction()} `
-      + `${glossaryInstruction()}`
-      + `${conversationContextBlock()}`
-      + `Respond in EXACTLY this format with no extra commentary:\n`
-      + `ORIGINAL: <exact transcription of what was said>\n`
-      + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
-
-    const streamResult = await geminiFetchStream('gemini-3.5-flash', {
-      contents: [{ parts: [
-        { text: prompt },
-        { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
-      ] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
-    }, (partialRaw) => {
-      const liveMsg = state.messages.find(m => m.id === msgId);
-      if(!liveMsg) return;
-      const origMatch = partialRaw.match(/ORIGINAL:\s*([\s\S]*?)(\nTRANSLATED:|$)/i);
-      const transMatch = partialRaw.match(/TRANSLATED:\s*([\s\S]*)/i);
-      if(origMatch) liveMsg.originalText = origMatch[1].trim() || '(transcribing voice…)';
-      if(transMatch) liveMsg.translatedText = transMatch[1].trim();
-      liveMsg.pending = false;
-      renderPanel('A'); renderPanel('B');
-    });
-
-    const msg = state.messages.find(m => m.id === msgId);
-    if(!streamResult.ok){
-      let bodyText = ''; try{ bodyText = streamResult.resp ? await streamResult.resp.text() : ''; }catch(e2){}
-      console.error('Voice hold API error:', streamResult.status, bodyText);
-      if(msg){
-        msg.originalText = '(voice message)';
-        msg.translatedText = `[Error] Could not process voice`;
-        msg.errorDetail = `API Error ${streamResult.status || ''}`;
-        msg.pending = false;
-      }
-      state.translating[side] = false;
-      renderPanel('A'); renderPanel('B');
-      return;
-    }
-
-    const raw = streamResult.fullText || '';
-    const origMatch = raw.match(/ORIGINAL:\s*([\s\S]*?)\nTRANSLATED:/i);
-    const transMatch = raw.match(/TRANSLATED:\s*([\s\S]*)/i);
-    const originalText = origMatch ? origMatch[1].trim() : '(voice message)';
-    const translatedText = transMatch ? transMatch[1].trim() : raw;
-
-    if(msg){
-      msg.originalText = originalText;
-      msg.translatedText = translatedText;
-      msg.pending = false;
-    }
-    if(originalText && translatedText) tmSave(sourceLang.code, targetLang.code, originalText, translatedText);
-
-    state.translating[side] = false;
-    renderPanel('A'); renderPanel('B');
-    vibrate(15);
-
-    const continueAutoConversation = () => {
-      if(state.autoConversation){
-        const replySide = otherSide(side);
-        if(!state.listening.A && !state.listening.B && !state.translating.A && !state.translating.B){
-          setTimeout(() => { if(state.autoConversation) startStt(replySide); }, 350);
-        }
-      }
-    };
-    if(state.autoSpeak) speak(translatedText, targetLang, continueAutoConversation);
-    else continueAutoConversation();
-
-  }catch(e){
-    console.error('handleVoiceHold failed:', e);
-    const msg = state.messages.find(m => m.id === msgId);
-    if(msg){
-      msg.originalText = '(voice message)';
-      msg.translatedText = `[Error] ${e.message}`;
-      msg.errorDetail = `Connection error: ${e.message}`;
-      msg.pending = false;
-    }
-    state.translating[side] = false;
-    renderPanel('A'); renderPanel('B');
-  }
-}
 
 /* =========================================================
    WAVEFORM — real-time mic level visualization for Hold-to-Talk.
@@ -739,51 +979,141 @@ function pcmBase64ToWavBlob(base64, sampleRate){
  */
 function hasBackend(){
   if(state.backendMode === 'proxy') return !!state.proxyUrl;
-  return !!state.apiKey;
+  return state.apiKeys.some(k => (k||'').trim()) || !!state.apiKey;
 }
 
 /**
- * Local, on-device usage counter — NOT connected to Google's actual quota
- * (there's no simple client-side way to read that), but tracks how many
- * Gemini calls this app has made today so you can self-monitor and pace
- * usage across the free-tier daily limit instead of running out by surprise.
+ * ---- API usage guardrails ----
+ * Free-tier Gemini quotas are mostly per-MINUTE request limits, so the
+ * biggest risk isn't total volume — it's BURSTS (Auto Chat firing several
+ * calls back-to-back, or a translate+verify+TTS combo landing in the same
+ * second). apiThrottle() enforces a small minimum gap between outgoing
+ * calls and automatically retries once (with a short backoff) on HTTP 429
+ * instead of immediately giving up and falling back to the offline
+ * dictionary — since a 429 is very often transient and gone half a second
+ * later. sessionApiStats just counts calls so Settings can show the person
+ * roughly how much they've used this session.
  */
-function trackApiCall(model){
-  try{
-    const today = new Date().toISOString().slice(0, 10);
-    const stored = JSON.parse(localStorage.getItem('wt_apiUsage') || '{}');
-    if(stored.date !== today){ stored.date = today; stored.count = 0; stored.byModel = {}; }
-    stored.count = (stored.count || 0) + 1;
-    stored.byModel = stored.byModel || {};
-    stored.byModel[model] = (stored.byModel[model] || 0) + 1;
-    localStorage.setItem('wt_apiUsage', JSON.stringify(stored));
-  }catch(e){ /* storage unavailable — usage just won't be tracked */ }
+const sessionApiStats = { calls: 0, retried: 0 };
+let apiThrottleQueue = Promise.resolve();
+const API_MIN_GAP_MS = 350;
+
+/**
+ * Proactive quota tracking. We don't know each key's exact daily limit (it
+ * varies and Google doesn't reliably expose remaining quota), so instead
+ * of guessing a number, we remember which keys *actually* hit a 429 today
+ * and steer new calls away from them — rather than waiting for them to
+ * fail again before rotating. Resets naturally each day since a stale
+ * date string just stops matching "today".
+ */
+function todayStr(){ return new Date().toISOString().slice(0, 10); }
+
+function markKeyExhausted(key){
+  if(!key) return;
+  state.exhaustedKeysToday[key] = todayStr();
+  try{ localStorage.setItem('wt_exhaustedKeys', JSON.stringify(state.exhaustedKeysToday)); }catch(e){}
 }
-function getApiUsageToday(){
-  try{
-    const today = new Date().toISOString().slice(0, 10);
-    const stored = JSON.parse(localStorage.getItem('wt_apiUsage') || '{}');
-    return stored.date === today ? stored : { date: today, count: 0, byModel: {} };
-  }catch(e){ return { date: '', count: 0, byModel: {} }; }
+
+function isKeyExhaustedToday(key){
+  return !!key && state.exhaustedKeysToday[key] === todayStr();
+}
+
+// Called before starting a new translation — switches state.apiKey to the
+// first configured key that hasn't already 429'd today, if the current
+// one has. Doesn't touch anything if the current key still looks fine.
+function pickBestApiKey(){
+  const keys = state.apiKeys.map(k => (k||'').trim()).filter(Boolean);
+  if(keys.length <= 1) return;
+  if(!isKeyExhaustedToday(state.apiKey)) return;
+  const fresh = keys.find(k => !isKeyExhaustedToday(k));
+  if(fresh){
+    state.apiKey = fresh;
+    state.apiKeyIndex = state.apiKeys.findIndex(k => (k||'').trim() === fresh);
+  }
+  // If every key is exhausted, leave it as-is — apiThrottle's normal 429
+  // handling (rotate + final wait/retry) still applies as a last resort.
+}
+
+/**
+ * Rotates state.apiKey to the next configured (non-empty) key. Used when a
+ * call comes back 429 (quota exceeded) — Google's free-tier quota is
+ * per-project/per-account, so a second personal key has its own separate
+ * allowance. Prefers a key that hasn't already 429'd today. Returns false
+ * if there's nothing else to rotate to.
+ */
+function rotateApiKey(){
+  const keys = state.apiKeys.map(k => (k||'').trim()).filter(Boolean);
+  if(keys.length <= 1) return false;
+  const currentPos = keys.indexOf(state.apiKey);
+  const ordered = keys.slice(currentPos + 1).concat(keys.slice(0, currentPos + 1));
+  const nextKey = ordered.find(k => k !== state.apiKey && !isKeyExhaustedToday(k)) || ordered.find(k => k !== state.apiKey);
+  if(!nextKey || nextKey === state.apiKey) return false;
+  state.apiKey = nextKey;
+  state.apiKeyIndex = state.apiKeys.findIndex(k => (k||'').trim() === nextKey);
+  return true;
+}
+
+function apiThrottle(doFetch){
+  const run = apiThrottleQueue.then(async () => {
+    pickBestApiKey();
+    sessionApiStats.calls++;
+    updateApiUsageBadge();
+    let resp = await doFetch();
+    const isRetryable = (r) => r && (r.status === 429 || r.status >= 500);
+    const keyCount = state.apiKeys.filter(k => (k||'').trim()).length;
+    let rotations = 0;
+    while(isRetryable(resp) && rotations < keyCount - 1){
+      sessionApiStats.retried++;
+      if(resp.status === 429) markKeyExhausted(state.apiKey);
+      if(!rotateApiKey()) break;
+      showToast(resp.status === 429
+        ? '🔄 Key quota ကုန်သွားလို့ backup key ကို ပြောင်းသုံးနေပါတယ်...'
+        : '🔄 Server error ကြုံနေလို့ backup key ကို ပြောင်းစမ်းနေပါတယ်...', 'warn');
+      resp = await doFetch();
+      rotations++;
+    }
+    if(isRetryable(resp)){
+      if(resp.status === 429) markKeyExhausted(state.apiKey);
+      // A 429 after exhausting every key rotation isn't going to fix itself
+      // in a second — that's a real daily quota, not a burst limit — so
+      // don't waste time waiting before falling through to the offline
+      // fallback chain. A 5xx, on the other hand, is often a brief Google
+      // server hiccup, so one short-wait retry is still worth it there.
+      if(resp.status !== 429){
+        sessionApiStats.retried++;
+        await new Promise(r => setTimeout(r, 1200));
+        resp = await doFetch();
+      }
+    }
+    return resp;
+  });
+  // Chain the next call after this one clears, with a small floor gap —
+  // .catch keeps a failed call from wedging the whole queue.
+  apiThrottleQueue = run.catch(() => {}).then(() => new Promise(r => setTimeout(r, API_MIN_GAP_MS)));
+  return run;
+}
+
+function updateApiUsageBadge(){
+  const el = document.getElementById('apiUsageBadge');
+  if(el) el.textContent = `ဒီ session မှာ AI call ${sessionApiStats.calls} ကြိမ်သုံးပြီးပါပြီ`;
 }
 
 async function geminiFetch(model, payload){
-  trackApiCall(model);
   if(state.backendMode === 'proxy' && state.proxyUrl){
-    return fetch(state.proxyUrl, {
+    return apiThrottle(() => fetch(state.proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, payload }),
-    });
+    }));
   }
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  return apiThrottle(() => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-goog-api-key': state.apiKey,
     },
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 /**
@@ -797,73 +1127,58 @@ async function geminiFetch(model, payload){
  * mode (the bundled Cloudflare Worker doesn't pass through streams) or if
  * the browser/network doesn't support readable streams for some reason.
  */
-async function geminiFetchOnce(model, payload, onChunk){
-  const resp = await geminiFetch(model, payload);
-  if(!resp.ok) return { ok: false, status: resp.status, resp };
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-  const finishReason = data?.candidates?.[0]?.finishReason;
-  if(text && onChunk) onChunk(text);
-  return { ok: true, fullText: text, finishReason };
-}
-
 async function geminiFetchStream(model, payload, onChunk){
   const useProxy = state.backendMode === 'proxy' && state.proxyUrl;
   if(useProxy || !window.ReadableStream){
-    return geminiFetchOnce(model, payload, onChunk);
+    const resp = await geminiFetch(model, payload);
+    if(!resp.ok) return { ok: false, status: resp.status, resp };
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if(text) onChunk(text);
+    return { ok: true, fullText: text, finishReason };
   }
 
-  // Reliability guarantee: if the streaming connection stalls, errors, or
-  // takes too long for ANY reason (network buffering, CORS quirk, mobile
-  // browser bug, etc.), we abort it and automatically retry with the
-  // plain, proven-reliable non-streaming call — so the person never sees
-  // a permanently stuck "translating…" again, worst case it's just as
-  // fast as before streaming existed.
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-
+  let resp;
   try{
-    trackApiCall(model);
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
+    resp = await apiThrottle(() => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
       body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    if(!resp.ok || !resp.body) throw new Error('Stream response not usable: ' + resp.status);
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullText = '';
-    let finishReason = null;
-
-    while(true){
-      const { done, value } = await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // last (possibly incomplete) line carries over to next read
-      for(const line of lines){
-        const trimmed = line.trim();
-        if(!trimmed.startsWith('data:')) continue;
-        const jsonStr = trimmed.slice(5).trim();
-        if(!jsonStr || jsonStr === '[DONE]') continue;
-        try{
-          const obj = JSON.parse(jsonStr);
-          const piece = obj?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-          if(piece){ fullText += piece; onChunk(fullText); }
-          if(obj?.candidates?.[0]?.finishReason) finishReason = obj.candidates[0].finishReason;
-        }catch(e){ /* partial/incomplete JSON line — wait for more data */ }
-      }
-    }
-    clearTimeout(timeoutId);
-    return { ok: true, fullText, finishReason };
+    }));
   }catch(e){
-    clearTimeout(timeoutId);
-    console.error('Streaming failed/stalled — falling back to non-streaming:', e);
-    return geminiFetchOnce(model, payload, onChunk);
+    return { ok: false, error: e };
   }
+  if(!resp.ok || !resp.body){
+    return { ok: false, status: resp.status, resp };
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+  let finishReason = null;
+
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // last (possibly incomplete) line carries over to next read
+    for(const line of lines){
+      const trimmed = line.trim();
+      if(!trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.slice(5).trim();
+      if(!jsonStr || jsonStr === '[DONE]') continue;
+      try{
+        const obj = JSON.parse(jsonStr);
+        const piece = obj?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+        if(piece){ fullText += piece; onChunk(fullText); }
+        if(obj?.candidates?.[0]?.finishReason) finishReason = obj.candidates[0].finishReason;
+      }catch(e){ /* partial/incomplete JSON line — wait for more data */ }
+    }
+  }
+  return { ok: true, fullText, finishReason };
 }
 
 async function speakViaGemini(text, onDone){
@@ -936,10 +1251,13 @@ async function speak(text, lang, onDone){
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
 
   // Voice Engine preference (Settings): 'device' forces the phone's built-in
-  // voice only; 'ai' forces Gemini's voice only; 'auto' (default) tries
-  // Gemini first — since it reliably supports Myanmar and other languages
-  // many Android devices don't ship a voice for — and falls back to the
-  // device voice only if that fails.
+  // voice only; 'ai' forces Gemini's voice only; 'auto' (default) now tries
+  // the FREE device voice first whenever the phone actually has one for this
+  // language, and only spends a Gemini API call when it doesn't (e.g. many
+  // phones lack a Myanmar voice). This cuts TTS-related API usage sharply
+  // for well-supported languages, since every Play tap and every Auto Chat
+  // turn used to cost a Gemini call regardless of what the phone could
+  // already do for free.
   const engine = state.voiceEngine || 'auto';
 
   if(engine === 'device'){
@@ -948,6 +1266,12 @@ async function speak(text, lang, onDone){
   }
 
   const canUseAi = !state.offlineForced && hasBackend();
+
+  if(engine === 'auto' && pickVoice(lang.ttsLocale)){
+    speakLocal(text, lang, onDone);
+    return;
+  }
+
   if(engine === 'ai' && !canUseAi){
     showToast('AI Voice အတွက် Internet/API Key လိုအပ်ပါတယ် — device voice ကို ယာယီသုံးပါမယ်', 'warn');
   }
@@ -1027,7 +1351,9 @@ async function handleTranslation(rawText, sender, isVoice){
   let translated = '';
   let approx = false;
   let usedOffline = false;
+  let usedMyMemory = false;
   let errorDetail = '';
+  let connectivityFailure = false;
 
   async function fallbackOffline(prefix){
     usedOffline = true;
@@ -1037,32 +1363,36 @@ async function handleTranslation(rawText, sender, isVoice){
       approx = false; // this is a real, previously-verified AI translation, not a guess
       return;
     }
-    const off = offlineTranslate(rawText, sourceLang.code, targetLang.code);
-    if(off){ translated = off.text; approx = off.approx; }
-    else { translated = `${prefix} ${rawText}`; approx = true; }
+    const result = await fallbackTranslateChain(rawText, sourceLang.code, targetLang.code);
+    if(result){
+      translated = result.text;
+      approx = result.approx;
+      usedMyMemory = result.usedMyMemory;
+    } else {
+      translated = `${prefix} ${rawText}`;
+      approx = true;
+    }
   }
 
   if(state.offlineForced || !hasBackend()){
     await fallbackOffline('[Offline]');
   } else {
     try{
-      const prompt = `You are an expert interpreter helping two people communicate naturally in a live, real-time conversation. `
-        + `Translate the following message from ${sourceLang.name} into ${targetLang.name}.\n\n`
-        + `IMPORTANT: Do NOT translate word-for-word. Understand the full meaning, tone, and intent of the message, `
-        + `then express it the way a native ${targetLang.name} speaker would naturally say it out loud in this real-life situation `
-        + `(everyday / workplace conversation).\n\n`
-        + `Tone: ${toneInstruction()}\n`
-        + `${glossaryInstruction()}`
-        + `${conversationContextBlock()}`
-        + `\nRules:\n`
-        + `- If translating into Burmese, use natural, everyday spoken Burmese (not overly formal/literary), unless Tone above says otherwise.\n`
-        + `- If translating into Chinese, use the polite/respectful form (您) unless the tone is clearly casual.\n`
-        + `- If translating into Thai, include natural polite particles (ครับ/ค่ะ) where appropriate.\n`
-        + `- If translating into English, use natural, conversational English.\n\n`
-        + `Return ONLY the translated sentence itself — no explanations, no notes, no quotation marks, no pronunciation guides.\n\n`
-        + `Message to translate now: "${rawText}"`;
+      const prompt = buildTranslationPrompt(rawText, sourceLang, targetLang);
 
-      const streamResult = await geminiFetchStream('gemini-3.5-flash', {
+      // Tracks whether we've already done the one-time structural render
+      // that swaps the "translating…" spinner for the real text+controls
+      // markup. Doing a full renderPanel() on EVERY streamed chunk (the
+      // old behavior) destroys and rebuilds ~15 DOM nodes and re-attaches
+      // ~10 event listeners per panel per chunk — on a busy stream that's
+      // dozens of synchronous reflows a second, which can starve the
+      // browser's paint cycle so intermediate text never actually gets
+      // drawn on screen (it looks like streaming "doesn't work" and the
+      // text just pops in at the end). We now do that heavy rebuild only
+      // once (to create the elements), then patch text directly for every
+      // subsequent chunk — cheap enough to paint every frame.
+      let streamStructureReady = false;
+      const streamResult = await geminiFetchStream('gemini-3.6-flash', {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.4,
@@ -1073,10 +1403,14 @@ async function handleTranslation(rawText, sender, isVoice){
         // Progressive update: show words as they arrive instead of a blank
         // "translating…" bubble sitting there for several seconds.
         const liveMsg = state.messages.find(m => m.id === msgId);
-        if(liveMsg){
-          liveMsg.translatedText = partialText;
-          liveMsg.pending = false;
+        if(!liveMsg) return;
+        liveMsg.translatedText = partialText;
+        liveMsg.pending = false;
+        if(!streamStructureReady){
+          streamStructureReady = true;
           renderPanel('A'); renderPanel('B');
+        } else {
+          patchStreamingText(msgId, partialText);
         }
       });
 
@@ -1087,19 +1421,20 @@ async function handleTranslation(rawText, sender, isVoice){
           tmSave(sourceLang.code, targetLang.code, rawText, translated);
         }
         else {
-          errorDetail = `Empty response (finishReason: ${streamResult.finishReason || 'unknown'})`;
+          errorDetail = 'AI ကနေ အဖြေ မရနိုင်ပါ — offline dictionary နဲ့ ပြန်ပြထားပါတယ်';
           console.error('Gemini empty response for streamed request');
           await fallbackOffline('[Empty response]');
         }
       } else {
         let bodyText = '';
         try{ bodyText = streamResult.resp ? await streamResult.resp.text() : ''; }catch(e2){}
-        errorDetail = `API Error ${streamResult.status || ''}: ${bodyText.slice(0, 200)}`;
+        errorDetail = friendlyApiError(streamResult.status);
         console.error('Gemini API error:', streamResult.status, bodyText);
         await fallbackOffline('[Network Error]');
       }
     } catch(e){
-      errorDetail = `Connection error: ${e.message} — VPN/firewall ရှိရင် ပိတ်ကြည့်ပါ, Wi-Fi/mobile data ပြောင်းကြည့်ပါ`;
+      errorDetail = 'Internet connection မရပါ — connection ပြန်ရလာရင် အလိုအလျောက် ထပ်ကြိုးစားပေးပါမယ်';
+      connectivityFailure = true;
       console.error('Gemini fetch failed:', e);
       await fallbackOffline('[Error Connection]');
     }
@@ -1110,8 +1445,11 @@ async function handleTranslation(rawText, sender, isVoice){
     msg.translatedText = translated;
     msg.approx = approx;
     msg.usedOffline = usedOffline;
+    msg.usedMyMemory = usedMyMemory;
     msg.errorDetail = errorDetail;
     msg.pending = false;
+    msg.connectivityFailure = connectivityFailure;
+    if(connectivityFailure) queueForRetry(msgId, sender, rawText, sourceLang.code, targetLang.code);
   }
 
   state.translating[sender] = false;
@@ -1190,7 +1528,7 @@ async function scanAndTranslate(file, side){
       + `ORIGINAL: <the text you read>\n`
       + `TRANSLATED: <the natural translation into ${targetLang.name}>`;
 
-    const resp = await geminiFetch('gemini-3.5-flash', {
+    const resp = await geminiFetch('gemini-3.6-flash', {
       contents: [{
         parts: [
           { text: prompt },
@@ -1312,33 +1650,19 @@ function renderPanel(side){
       </select>
     </div>
     <div class="chatLog" id="chatLog${side}"></div>
-    <div class="pttCaption" id="pttCaption${side}"></div>
     <div class="inputRow">
-      <button class="modeToggleBtn ${state.pttMode[side]?'active':''}" id="modeToggle${side}" title="Switch between typing and Hold-to-Talk" aria-label="Switch input mode">
-        ${state.pttMode[side] ? svgKeyboard() : svgWalkieTalkie()}
-      </button>
-
-      <div class="textFieldWrap" id="textFieldWrap${side}" style="${state.pttMode[side]?'display:none;':''}">
-        <input type="text" id="input${side}" placeholder="Type message to translate..." aria-label="Message to translate" ${isA ? 'readonly' : ''}>
+      <div class="textFieldWrap" id="textFieldWrap${side}">
+        <input type="text" id="input${side}" maxlength="4000" placeholder="${isA ? 'Hold mic to talk…' : 'Type or hold mic to talk…'}" aria-label="Message to translate" ${isA ? 'readonly' : ''}>
         <button class="sendBtn" id="sendBtn${side}" aria-label="Send and translate">${svgSend()}</button>
       </div>
-
-      <div class="pttWrap" id="pttWrap${side}" style="${state.pttMode[side]?'':'display:none;'}">
-        <div class="waveformBox" id="waveform${side}">
-          ${Array.from({length:9}).map(()=>'<div class="wfBar idle" style="height:6px;"></div>').join('')}
-        </div>
-        <button class="pttCircle ${isListening?'recording':''}" id="pttCircle${side}" aria-label="Hold to talk">
-          ${svgMic()}
-        </button>
-      </div>
+      <button class="holdMicBtn ${isListening?'recording':''}" id="holdMic${side}" aria-label="Hold to talk, release to send">
+        ${svgMic()}
+      </button>
     </div>
     <div class="toolbarRow">
       <button class="camBtn ${isTranslating?'busy':''}" id="cam${side}" title="Scan photo, PDF, or file to translate" aria-label="Scan a photo, PDF, or file to translate">${svgCamera()}</button>
       <button class="camBtn" id="phrasebook${side}" title="Quick phrasebook — emergency, medical, work, housing" aria-label="Open quick phrasebook">${svgBook()}</button>
-      <button class="camBtn ${isListening&&!state.pttMode[side]?'listening '+side:''} ${isTranslating?'busy':''}" id="mic${side}" title="Tap to talk, auto-stops when you pause" aria-label="Speak to translate (tap mode)">
-        ${isTranslating ? '<div class="spinner" style="width:16px;height:16px;"></div>' : svgMic()}
-      </button>
-      <div class="pttHint" style="flex:1;text-align:right;padding-right:2px;">${state.pttMode[side] ? '🎙️ Hold circle to talk' : ''}</div>
+      <div class="pttHint" style="flex:1;text-align:right;padding-right:2px;">🎙️ Hold mic to talk, release to send</div>
     </div>
   `;
 
@@ -1363,47 +1687,30 @@ function renderPanel(side){
     });
   }
 
-  const micBtn = document.getElementById('mic'+side);
-  micBtn.addEventListener('click', (e)=>{
-    e.preventDefault();
-    if(isTranslating) return;
-    if(state.listening[side]){ stopSttManual(); }
-    else { vibrate(10); startStt(side); }
-  });
-
-  document.getElementById('modeToggle'+side).addEventListener('click', ()=>{
-    if(state.listening[side]) stopSttManual();
-    state.pttMode[side] = !state.pttMode[side];
-    vibrate(10);
-    renderPanel(side);
-  });
-
-  const pttCircle = document.getElementById('pttCircle'+side);
-  let pttHoldActive = false;
-  pttCircle.addEventListener('pointerdown', (e)=>{
+  const holdMic = document.getElementById('holdMic'+side);
+  let holdActive = false;
+  holdMic.addEventListener('pointerdown', (e)=>{
     e.preventDefault();
     if(isTranslating) return;
     // Pointer capture keeps pointerup targeting this button even if the
     // finger drifts slightly during the hold — without this, mobile touch
     // tracking can misfire "pointerleave" almost instantly and cut off
     // the recording before any speech is captured.
-    try{ pttCircle.setPointerCapture(e.pointerId); }catch(err){}
-    pttHoldActive = true;
+    try{ holdMic.setPointerCapture(e.pointerId); }catch(err){}
+    holdActive = true;
     vibrate(15);
-    pttCircle.classList.add('recording');
-    updateHoldCaption(side, '🎙️ Recording... release to send');
+    holdMic.classList.add('recording');
     startHoldRecording(side);
   });
-  const endPttHold = ()=>{
-    if(!pttHoldActive) return;
-    pttHoldActive = false;
+  const endHold = ()=>{
+    if(!holdActive) return;
+    holdActive = false;
     vibrate(10);
-    pttCircle.classList.remove('recording');
-    stopWaveform(side);
+    holdMic.classList.remove('recording');
     stopHoldRecording(side);
   };
-  pttCircle.addEventListener('pointerup', endPttHold);
-  pttCircle.addEventListener('pointercancel', endPttHold);
+  holdMic.addEventListener('pointerup', endHold);
+  holdMic.addEventListener('pointercancel', endHold);
 
   const camBtn = document.getElementById('cam'+side);
   camBtn.addEventListener('click', (e)=>{
@@ -1452,28 +1759,29 @@ function renderChatLog(side){
             <div class="badges">
               ${msg.isVoice ? `<svg class="voiceIcon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/></svg>` : ''}
               ${msg.isScan ? `<span class="scanBadge">📷 scan</span>` : ''}
-              ${msg.usedOffline ? (msg.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
+              ${msg.usedOffline ? (msg.usedMyMemory ? `<span class="myMemoryBadge">MyMemory</span>` : (msg.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`)) : ''}
+              ${msg.connectivityFailure ? `<span class="offlineBadge">🔌 queued</span>` : ''}
               ${msg.approx ? `<span class="approxBadge">≈ approx</span>` : ''}
             </div>
           </div>
           ${msg.photoUrl ? `<img src="${msg.photoUrl}" class="scanThumb" alt="Scanned photo">` : ''}
-          <div class="mainText">${showMainPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(mainRaw)}</div>
+          <div class="mainText" ${showMainPending ? '' : `data-mid="${msg.id}" data-role="${isMine ? 'orig' : 'trans'}"`}>${showMainPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(mainRaw)}</div>
           ${showMainPending ? '' : `
           <div class="miniControls">
-            <button class="iconBtn" title="Play" aria-label="Play audio" onclick='playBlock(${JSON.stringify(mainRaw)}, "${mainSide}")'>${svgPlay()}</button>
-            <button class="iconBtn" title="Copy" aria-label="Copy text" onclick='copyBlock(${JSON.stringify(mainRaw)}, this)'>${svgCopy()}</button>
+            <button class="iconBtn playBtn" data-mid="${msg.id}" data-block="main" data-side="${mainSide}" title="Play" aria-label="Play audio">${svgPlay()}</button>
+            <button class="iconBtn copyBtn" data-mid="${msg.id}" data-block="main" data-side="${mainSide}" title="Copy" aria-label="Copy text">${svgCopy()}</button>
           </div>`}
           ${hideSub ? '' : `
           <hr>
           <div class="subRow">
             <span class="subLabel">${isMine ? translationLabel : originalLabel}</span>
           </div>
-          <div class="subText">${showSubPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(subRaw)}</div>
+          <div class="subText" ${showSubPending ? '' : `data-mid="${msg.id}" data-role="${isMine ? 'trans' : 'orig'}"`}>${showSubPending ? '<span class="dotFlicker">translating…</span>' : escapeHtml(subRaw)}</div>
           ${showSubPending ? '' : `
           <div class="miniControls">
-            <button class="iconBtn" title="Play" aria-label="Play audio" onclick='playBlock(${JSON.stringify(subRaw)}, "${subSide}")'>${svgPlay()}</button>
-            <button class="iconBtn" title="Copy" aria-label="Copy text" onclick='copyBlock(${JSON.stringify(subRaw)}, this)'>${svgCopy()}</button>
-            ${isMine ? `<button class="iconBtn" title="Verify: translate back to check accuracy" onclick='verifyBlock("${msg.id}", ${JSON.stringify(subRaw)}, "${subSide}", "${mainSide}", this)'>${svgVerify()}</button>` : ''}
+            <button class="iconBtn playBtn" data-mid="${msg.id}" data-block="sub" data-side="${subSide}" title="Play" aria-label="Play audio">${svgPlay()}</button>
+            <button class="iconBtn copyBtn" data-mid="${msg.id}" data-block="sub" data-side="${subSide}" title="Copy" aria-label="Copy text">${svgCopy()}</button>
+            ${isMine ? `<button class="iconBtn verifyBtn" data-mid="${msg.id}" data-from="${subSide}" data-to="${mainSide}" title="Verify: translate back to check accuracy">${svgVerify()}</button>` : ''}
           </div>
           ${isMine ? `<div id="verify-${msg.id}"></div>` : ''}`}`}
           ${msg.errorDetail ? `<div class="errorDetail">⚠ ${escapeHtml(msg.errorDetail)}</div>` : ''}
@@ -1483,6 +1791,75 @@ function renderChatLog(side){
     `;
   }).join('');
 }
+
+// Cheap incremental update used while a translation is streaming in:
+// only touches the small text nodes that show the in-progress
+// original/translated text (one pair per panel) instead of rebuilding
+// the whole panel. fields = { orig?: string, trans?: string } — pass
+// whichever field(s) changed this chunk.
+function patchStreamingFields(msgId, fields){
+  if(fields.orig !== undefined){
+    document.querySelectorAll(`.mainText[data-mid="${msgId}"][data-role="orig"], .subText[data-mid="${msgId}"][data-role="orig"]`)
+      .forEach(el => { el.textContent = fields.orig; });
+  }
+  if(fields.trans !== undefined){
+    document.querySelectorAll(`.mainText[data-mid="${msgId}"][data-role="trans"], .subText[data-mid="${msgId}"][data-role="trans"]`)
+      .forEach(el => { el.textContent = fields.trans; });
+  }
+}
+// Back-compat convenience wrapper for the plain-text-only streaming case.
+function patchStreamingText(msgId, text){ patchStreamingFields(msgId, { trans: text }); }
+// Same idea for the Quick Translate screen's single-column history cards.
+function patchQtStreamingText(id, text){
+  const el = document.querySelector(`.qtTranslation[data-qtid="${id}"]`);
+  if(el) el.textContent = text;
+}
+function patchQtStreamingOrig(id, text){
+  const el = document.querySelector(`.qtOriginal[data-qtid-orig="${id}"]`);
+  if(el) el.textContent = text;
+}
+
+// Resolves the original/translated text for a message + block ("main" or
+// "sub") + panel side at click time, straight from state — nothing is ever
+// serialized into an HTML attribute, so there's no way for message content
+// (which can contain quotes, HTML, anything) to break out of markup.
+function resolveBlockText(msg, block, panelSide){
+  const isMine = msg.sender === panelSide;
+  if(block === 'main') return isMine ? msg.originalText : msg.translatedText;
+  return isMine ? msg.translatedText : msg.originalText;
+}
+
+document.addEventListener('click', (e) => {
+  const playBtn = e.target.closest('.playBtn');
+  if(playBtn){
+    const msg = state.messages.find(m => m.id === playBtn.dataset.mid);
+    if(msg) playBlock(resolveBlockText(msg, playBtn.dataset.block, playBtn.dataset.side), playBtn.dataset.side);
+    return;
+  }
+  const copyBtn = e.target.closest('.copyBtn');
+  if(copyBtn){
+    const msg = state.messages.find(m => m.id === copyBtn.dataset.mid);
+    if(msg) copyBlock(resolveBlockText(msg, copyBtn.dataset.block, copyBtn.dataset.side), copyBtn);
+    return;
+  }
+  const verifyBtn = e.target.closest('.verifyBtn');
+  if(verifyBtn){
+    const msg = state.messages.find(m => m.id === verifyBtn.dataset.mid);
+    if(msg) verifyBlock(msg.id, msg.translatedText, verifyBtn.dataset.from, verifyBtn.dataset.to, verifyBtn);
+    return;
+  }
+  const qtCopyBtn = e.target.closest('.qtCopyBtn');
+  if(qtCopyBtn){
+    const item = state.qtHistory.find(i => i.id == qtCopyBtn.dataset.id);
+    if(item) copyBlock(qtCopyBtn.dataset.field === 'orig' ? item.originalText : item.translatedText, qtCopyBtn);
+    return;
+  }
+  const qtPlayBtn = e.target.closest('.qtPlayBtn');
+  if(qtPlayBtn){
+    qtPlay(Number(qtPlayBtn.dataset.id));
+    return;
+  }
+});
 
 function playBlock(text, side){
   const lang = side === 'A' ? state.langA : state.langB;
@@ -1505,7 +1882,7 @@ async function verifyBlock(msgId, text, fromSide, toSide, btnEl){
     const prompt = `Translate the following ${fromLang.name} text into ${toLang.name} as literally and accurately as possible `
       + `(this is for a back-translation accuracy check, not for natural conversation — precision matters more than fluency here). `
       + `Return ONLY the translation, nothing else.\n\nText: "${text}"`;
-    const resp = await geminiFetch('gemini-3.5-flash', {
+    const resp = await geminiFetch('gemini-3.6-flash', {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.2, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'minimal' } }
     });
@@ -1633,7 +2010,11 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.querySelectorAll('.settingsPane').forEach(pane => {
     pane.style.display = pane.dataset.pane === 'account' ? 'block' : 'none';
   });
-  document.getElementById('apiKeyInput').value = state.apiKey;
+  document.getElementById('apiKeyInput').value = state.apiKeys[0] || '';
+  document.getElementById('apiKeyInput2').value = state.apiKeys[1] || '';
+  document.getElementById('apiKeyInput3').value = state.apiKeys[2] || '';
+  document.getElementById('myMemoryToggle').checked = state.myMemoryEnabled;
+  document.getElementById('myMemoryEmailInput').value = state.myMemoryEmail || '';
   document.getElementById('proxyUrlInput').value = state.proxyUrl;
   document.getElementById('ownKeyFields').style.display = state.backendMode === 'proxy' ? 'none' : 'block';
   document.getElementById('proxyFields').style.display = state.backendMode === 'proxy' ? 'block' : 'none';
@@ -1647,13 +2028,6 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('saveHistoryToggle').checked = state.saveHistory;
   document.getElementById('glossaryInput').value = state.glossary;
   document.getElementById('versionFooter').textContent = 'Walkie-Talkie Translator · v' + APP_VERSION;
-  const usage = getApiUsageToday();
-  const modelLines = Object.entries(usage.byModel || {}).map(([m, c]) => `• ${m}: ${c} calls`).join('\n');
-  const usageBox = document.getElementById('apiUsageBox');
-  if(usageBox){
-    usageBox.textContent =
-      `Total calls today: ${usage.count || 0}` + (modelLines ? `\n${modelLines}` : '\n(မခေါ်ရသေးပါ)');
-  }
   clearHistoryArmed = false;
   clearTimeout(clearHistoryResetTimer);
   const chBtn = document.getElementById('clearHistoryBtn');
@@ -1669,6 +2043,7 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.querySelectorAll('#voiceEngineRow .speedBtn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.engine === state.voiceEngine);
   });
+  updateVoiceDiag();
   overlay.classList.add('show');
 });
 document.querySelectorAll('#backendModeRow .speedBtn').forEach(btn => {
@@ -1756,7 +2131,16 @@ document.getElementById('clearHistoryBtn').addEventListener('click', (e)=>{
   vibrate(20);
 });
 document.getElementById('applyBtn').addEventListener('click', ()=>{
-  state.apiKey = document.getElementById('apiKeyInput').value.trim();
+  state.apiKeys = [
+    document.getElementById('apiKeyInput').value.trim(),
+    document.getElementById('apiKeyInput2').value.trim(),
+    document.getElementById('apiKeyInput3').value.trim(),
+  ];
+  state.apiKeyIndex = state.apiKeys.findIndex(k => k);
+  if(state.apiKeyIndex === -1) state.apiKeyIndex = 0;
+  state.apiKey = state.apiKeys[state.apiKeyIndex] || '';
+  state.myMemoryEnabled = document.getElementById('myMemoryToggle').checked;
+  state.myMemoryEmail = document.getElementById('myMemoryEmailInput').value.trim();
   state.proxyUrl = document.getElementById('proxyUrlInput').value.trim();
   const activeBackendBtn = document.querySelector('#backendModeRow .speedBtn.active');
   if(activeBackendBtn) state.backendMode = activeBackendBtn.dataset.mode;
@@ -1774,7 +2158,9 @@ document.getElementById('applyBtn').addEventListener('click', ()=>{
   const activeEngineBtn = document.querySelector('#voiceEngineRow .speedBtn.active');
   if(activeEngineBtn) state.voiceEngine = activeEngineBtn.dataset.engine;
   try{
-    localStorage.setItem('wt_apiKey', state.apiKey);
+    localStorage.setItem('wt_apiKeys', JSON.stringify(state.apiKeys));
+    localStorage.setItem('wt_myMemoryEnabled', state.myMemoryEnabled ? '1' : '0');
+    localStorage.setItem('wt_myMemoryEmail', state.myMemoryEmail);
     localStorage.setItem('wt_proxyUrl', state.proxyUrl);
     localStorage.setItem('wt_backendMode', state.backendMode);
     localStorage.setItem('wt_offlineForced', state.offlineForced ? '1' : '0');
@@ -1809,6 +2195,107 @@ state.qtMicCode = 'my';
 state.qtDomain = 'general';
 state.qtHistory = [];
 
+const WORK_DOMAINS = [
+  {
+    code: 'general', label: '🌐 General (No specific domain)',
+    hint: '',
+    suggestions: [],
+  },
+  {
+    code: 'electronics', label: '🔌 Electronics / PCB Factory',
+    hint: 'This conversation takes place in an electronics / PCB (printed circuit board) manufacturing factory. Use accurate industry-standard technical terminology for concepts like SMT (surface-mount technology), reflow soldering, pick-and-place machines, solder paste, wave soldering, PCB inspection, quality control (QC), defect rate, ESD (electrostatic discharge) precautions, and production line workflow — translate the way an experienced factory worker or engineer in this industry would actually say it, not literally word-for-word.',
+    suggestions: [
+      "What is today's defect rate?",
+      "Please check this solder joint again.",
+      "The machine needs maintenance.",
+      "How many units per hour is the target?",
+      "This board failed quality inspection.",
+      "Please wear your ESD wrist strap.",
+      "The reflow oven temperature looks wrong.",
+      "We are short of components for this line.",
+    ],
+  },
+  {
+    code: 'factory_general', label: '🏭 General Factory / Manufacturing',
+    hint: 'This conversation takes place in a general manufacturing factory. Use accurate terminology for production lines, shift schedules, machine operation, safety procedures, quality control, and factory management — the way a factory supervisor or worker would naturally say it.',
+    suggestions: [
+      "What time does the next shift start?",
+      "Please report any injury immediately.",
+      "This machine is not working properly.",
+      "We need more raw materials.",
+      "Please follow the safety procedure.",
+      "How many pieces did we produce today?",
+    ],
+  },
+  {
+    code: 'construction', label: '🏗️ Construction Site',
+    hint: 'This conversation takes place on a construction site. Use accurate terminology for scaffolding, rebar, concrete pouring, safety harnesses, blueprints, the foreman, crane operation, and building codes — the way an experienced construction worker would say it.',
+    suggestions: [
+      "Please wear your safety helmet and harness.",
+      "This scaffolding looks unstable.",
+      "We need more cement/concrete.",
+      "Where are the blueprints for this floor?",
+      "Please stop the crane, it's not safe.",
+      "This area is dangerous, do not enter.",
+    ],
+  },
+  {
+    code: 'kitchen', label: '🍳 Restaurant / Kitchen',
+    hint: 'This conversation takes place in a restaurant or food-service kitchen. Use accurate terminology for food preparation, kitchen equipment, food safety/hygiene, and service — the way kitchen staff would naturally say it.',
+    suggestions: [
+      "This needs to be cooked more.",
+      "Please wash your hands before handling food.",
+      "We are out of this ingredient.",
+      "This customer has a food allergy.",
+      "The kitchen needs to be cleaned now.",
+    ],
+  },
+  {
+    code: 'domestic', label: '🏠 Domestic / Housekeeping / Caregiving',
+    hint: 'This conversation takes place in a household setting (housekeeping, childcare, or eldercare). Use natural, warm, everyday terminology appropriate for a home setting — precision matters especially for care/medical instructions.',
+    suggestions: [
+      "What time should I pick up the children?",
+      "Please take this medicine after eating.",
+      "The baby needs a diaper change.",
+      "I finished cleaning the house.",
+      "Please call me if there is an emergency.",
+    ],
+  },
+  {
+    code: 'logistics', label: '🚚 Warehouse / Logistics',
+    hint: 'This conversation takes place in a warehouse/logistics setting. Use accurate terminology for inventory, shipping, forklift operation, loading docks, packing, and supply chain workflow — the way warehouse staff would say it.',
+    suggestions: [
+      "Where should this shipment go?",
+      "Please check the inventory count.",
+      "The forklift needs to move this pallet.",
+      "This package is damaged.",
+      "When is the next delivery truck arriving?",
+    ],
+  },
+  {
+    code: 'agriculture', label: '🌾 Farm / Agriculture',
+    hint: 'This conversation takes place on a farm/agricultural setting. Use accurate terminology for crops, livestock, farming equipment, irrigation, and seasonal work — the way farm workers would say it.',
+    suggestions: [
+      "When should we harvest this crop?",
+      "The irrigation system is not working.",
+      "This animal looks sick.",
+      "We need more fertilizer.",
+      "The weather looks bad for today's work.",
+    ],
+  },
+  {
+    code: 'healthcare', label: '⚕️ Healthcare / Caregiving',
+    hint: 'This conversation takes place in a healthcare or caregiving setting. Use accurate, careful medical/care terminology — be extra precise, since translation errors here could affect someone\'s health and safety.',
+    suggestions: [
+      "Where does it hurt?",
+      "Please take this medicine twice a day.",
+      "Do you have any allergies?",
+      "We need to call an ambulance.",
+      "Please rest and drink plenty of water.",
+    ],
+  },
+];
+const domainByCode = c => WORK_DOMAINS.find(d => d.code === c) || WORK_DOMAINS[0];
 
 function qtPopulateDomains(){
   const sel = document.getElementById('qtDomain');
@@ -1851,12 +2338,6 @@ function qtPopulateSelects(){
 ========================================================= */
 function showView(view){
   state.currentView = view;
-  const views = {
-    home: document.getElementById('homeScreen'),
-    conversation: document.getElementById('panelA'),
-    quick: document.getElementById('quickPanel'),
-    live: document.getElementById('livePanel'),
-  };
   document.getElementById('homeScreen').style.display = view === 'home' ? 'flex' : 'none';
   document.getElementById('panelA').style.display = view === 'conversation' ? 'flex' : 'none';
   document.getElementById('divider').style.display = view === 'conversation' ? 'flex' : 'none';
@@ -1864,12 +2345,6 @@ function showView(view){
   document.getElementById('quickPanel').style.display = view === 'quick' ? 'flex' : 'none';
   document.getElementById('livePanel').style.display = view === 'live' ? 'flex' : 'none';
   document.getElementById('homeBtn').classList.toggle('show', view !== 'home');
-  const active = views[view];
-  if(active){
-    active.classList.remove('viewFadeIn');
-    void active.offsetWidth; // restart animation
-    active.classList.add('viewFadeIn');
-  }
 }
 
 document.querySelectorAll('.homeCard').forEach(card => {
@@ -1906,18 +2381,18 @@ function qtRenderHistory(){
       ` : `
         <div class="qtBadges">
           ${item.detectedLang ? `<span class="qtDetected">Detected: ${escapeHtml(item.detectedLang)}</span>` : ''}
-          ${item.usedOffline ? (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`) : ''}
+          ${item.usedOffline ? (item.usedMyMemory ? `<span class="myMemoryBadge">MyMemory</span>` : (item.approx ? `<span class="offlineBadge">offline</span>` : `<span class="memoryBadge">✓ remembered</span>`)) : ''}
         </div>
         ${item.photoUrl ? `<img src="${item.photoUrl}" class="scanThumb" alt="Scanned photo">` : ''}
-        <div class="qtOriginal">${escapeHtml(item.originalText)}</div>
+        <div class="qtOriginal" data-qtid-orig="${item.id}">${escapeHtml(item.originalText)}</div>
         <div class="miniControls">
-          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.originalText)}, this)'>${svgCopy()}</button>
+          <button class="iconBtn qtCopyBtn" data-id="${item.id}" data-field="orig" title="Copy">${svgCopy()}</button>
         </div>
         <hr>
-        <div class="qtTranslation">${escapeHtml(item.translatedText)}</div>
+        <div class="qtTranslation" data-qtid="${item.id}">${escapeHtml(item.translatedText)}</div>
         <div class="miniControls">
-          <button class="iconBtn" title="Play" onclick='qtPlay(${item.id})'>${svgPlay()}</button>
-          <button class="iconBtn" title="Copy" onclick='copyBlock(${JSON.stringify(item.translatedText)}, this)'>${svgCopy()}</button>
+          <button class="iconBtn qtPlayBtn" data-id="${item.id}" title="Play">${svgPlay()}</button>
+          <button class="iconBtn qtCopyBtn" data-id="${item.id}" data-field="trans" title="Copy">${svgCopy()}</button>
         </div>
       `}
     </div>
@@ -1943,26 +2418,30 @@ async function qtTranslate(rawText, queryLabel){
   let translatedText = '';
   let detectedLang = '';
   let usedOffline = false;
+  let usedMyMemory = false;
   let approx = false;
 
-  if(state.offlineForced || !hasBackend()){
+  async function qtFallback(){
     usedOffline = true;
     const remembered = tmLookup('auto', targetLang.code, rawText);
     if(remembered){
       translatedText = remembered;
       approx = false;
-    } else {
-      // Heuristic: try the offline dictionary assuming each known language
-      // as the possible source, since we don't know what this text is.
-      let found = null;
-      for(const l of LANGUAGES){
-        if(l.code === targetLang.code) continue;
-        const off = offlineTranslate(rawText, l.code, targetLang.code);
-        if(off){ found = off; break; }
-      }
-      if(found){ translatedText = found.text; approx = found.approx; }
-      else { translatedText = `[Offline] ${rawText}`; approx = true; }
+      return;
     }
+    const result = await fallbackTranslateChain(rawText, 'autodetect', targetLang.code);
+    if(result){
+      translatedText = result.text;
+      approx = result.approx;
+      usedMyMemory = result.usedMyMemory;
+    } else {
+      translatedText = `[Offline] ${rawText}`;
+      approx = true;
+    }
+  }
+
+  if(state.offlineForced || !hasBackend()){
+    await qtFallback();
   } else {
     try{
       const domainHint = domainByCode(state.qtDomain).hint;
@@ -1976,7 +2455,8 @@ async function qtTranslate(rawText, queryLabel){
         + `TRANSLATION: <the natural translation, full text, nothing added>\n\n`
         + `Message: "${rawText}"`;
 
-      const streamResult = await geminiFetchStream('gemini-3.5-flash', {
+      let qtStreamStructureReady = false;
+      const streamResult = await geminiFetchStream('gemini-3.6-flash', {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingLevel: 'minimal' } }
       }, (partialRaw) => {
@@ -1986,7 +2466,12 @@ async function qtTranslate(rawText, queryLabel){
           if(liveItem){
             liveItem.translatedText = partialMatch[1].trim();
             liveItem.pending = false;
-            qtRenderHistory();
+            if(!qtStreamStructureReady){
+              qtStreamStructureReady = true;
+              qtRenderHistory();
+            } else {
+              patchQtStreamingText(id, liveItem.translatedText);
+            }
           }
         }
       });
@@ -2000,20 +2485,23 @@ async function qtTranslate(rawText, queryLabel){
         if(translatedText){
           tmSave('auto', targetLang.code, rawText, translatedText);
         } else {
-          usedOffline = true; approx = true; translatedText = `[Empty response] ${rawText}`;
+          console.error('Gemini empty response for QT request');
+          await qtFallback();
         }
       } else {
-        usedOffline = true; approx = true; translatedText = `[Network Error] ${rawText}`;
+        console.error('Gemini API error (QT):', streamResult.status);
+        await qtFallback();
       }
     } catch(e){
-      usedOffline = true; approx = true; translatedText = `[Error Connection] ${rawText}`;
+      console.error('Gemini fetch failed (QT):', e);
+      await qtFallback();
     }
   }
 
   const item = state.qtHistory.find(i => i.id === id);
   if(item){
     Object.assign(item, {
-      pending: false, originalText: rawText, translatedText, detectedLang, usedOffline, approx
+      pending: false, originalText: rawText, translatedText, detectedLang, usedOffline, usedMyMemory, approx
     });
   }
   qtRenderHistory();
@@ -2032,6 +2520,7 @@ document.getElementById('qtInput').addEventListener('input', (e) => {
   e.target.style.height = 'auto';
   e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px';
 });
+attachDictation(document.getElementById('qtInput'), document.getElementById('qtDictateBtn'), () => state.langB);
 document.getElementById('qtInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter' && !e.shiftKey){
     e.preventDefault();
@@ -2074,7 +2563,7 @@ async function qtHandleVoiceHold(blob){
       + `ORIGINAL: <exact transcription of what was said>\n`
       + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
 
-    const streamResult = await geminiFetchStream('gemini-3.5-flash', {
+    const streamResult = await geminiFetchStream('gemini-3.6-flash', {
       contents: [{ parts: [
         { text: prompt },
         { inline_data: { mime_type: blob.type || 'audio/webm', data: base64 } }
@@ -2087,8 +2576,14 @@ async function qtHandleVoiceHold(blob){
       const transMatch = partialRaw.match(/TRANSLATION:\s*([\s\S]*)/i);
       if(origMatch) liveItem.originalText = origMatch[1].trim();
       if(transMatch) liveItem.translatedText = transMatch[1].trim();
+      const wasPending = liveItem.pending;
       liveItem.pending = false;
-      qtRenderHistory();
+      if(wasPending){
+        qtRenderHistory();
+      } else {
+        if(origMatch) patchQtStreamingOrig(id, liveItem.originalText);
+        if(transMatch) patchQtStreamingText(id, liveItem.translatedText);
+      }
     });
 
     if(!streamResult.ok){
@@ -2149,7 +2644,7 @@ async function qtScanAndTranslate(file){
       + `ORIGINAL: <the text you read>\n`
       + `TRANSLATION: <the natural translation into ${targetLang.name}>`;
 
-    const resp = await geminiFetch('gemini-3.5-flash', {
+    const resp = await geminiFetch('gemini-3.6-flash', {
       contents: [{ parts: [
         { text: prompt },
         { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
@@ -2285,6 +2780,14 @@ qtPttCircle.addEventListener('pointercancel', endQtPttHold);
    exact phrases are also in the offline dictionary, they translate
    accurately even with zero internet.
 ========================================================= */
+const PB_CATEGORIES = [
+  {key:'emergency', label:'🚨 Emergency'},
+  {key:'medical', label:'🏥 Medical'},
+  {key:'workplace', label:'💼 Workplace'},
+  {key:'housing', label:'🏠 Housing'},
+  {key:'wages', label:'💰 Wages'},
+  {key:'immigration', label:'✈️ Immigration'},
+];
 let pbActiveCategory = 'emergency';
 let pbActiveSide = 'A';
 
@@ -2370,6 +2873,11 @@ document.getElementById('typeOverlayInput').addEventListener('keydown', (e)=>{
     document.getElementById('typeOverlaySendBtn').click();
   }
 });
+attachDictation(
+  document.getElementById('typeOverlayInput'),
+  document.getElementById('typeOverlayDictateBtn'),
+  () => (typeOverlaySide === 'A' ? state.langA : state.langB)
+);
 
 qtPopulateSelects();
 qtRenderHistory();
@@ -2378,7 +2886,14 @@ qtRenderHistory();
    INIT
 ========================================================= */
 try{
-  const savedKey = localStorage.getItem('wt_apiKey');
+  const savedKeysRaw = localStorage.getItem('wt_apiKeys');
+  const savedExhausted = localStorage.getItem('wt_exhaustedKeys');
+  if(savedExhausted){
+    try{ state.exhaustedKeysToday = JSON.parse(savedExhausted) || {}; }catch(e){}
+  }
+  const savedKeyOld = localStorage.getItem('wt_apiKey'); // pre-rotation format, migrated below
+  const savedMyMemoryEnabled = localStorage.getItem('wt_myMemoryEnabled');
+  const savedMyMemoryEmail = localStorage.getItem('wt_myMemoryEmail');
   const savedProxyUrl = localStorage.getItem('wt_proxyUrl');
   const savedBackendMode = localStorage.getItem('wt_backendMode');
   const savedOffline = localStorage.getItem('wt_offlineForced');
@@ -2391,7 +2906,20 @@ try{
   const savedVoiceEngine = localStorage.getItem('wt_voiceEngine');
   const savedGlossary = localStorage.getItem('wt_glossary');
   const savedSaveHistory = localStorage.getItem('wt_saveHistory');
-  if(savedKey) state.apiKey = savedKey;
+  if(savedKeysRaw){
+    try{
+      const parsed = JSON.parse(savedKeysRaw);
+      if(Array.isArray(parsed)) state.apiKeys = [parsed[0]||'', parsed[1]||'', parsed[2]||''];
+    }catch(e){}
+  } else if(savedKeyOld){
+    // One-time migration from the pre-rotation single-key format.
+    state.apiKeys = [savedKeyOld, '', ''];
+  }
+  state.apiKeyIndex = state.apiKeys.findIndex(k => k);
+  if(state.apiKeyIndex === -1) state.apiKeyIndex = 0;
+  state.apiKey = state.apiKeys[state.apiKeyIndex] || '';
+  if(savedMyMemoryEnabled !== null) state.myMemoryEnabled = savedMyMemoryEnabled === '1';
+  if(savedMyMemoryEmail) state.myMemoryEmail = savedMyMemoryEmail;
   if(savedProxyUrl) state.proxyUrl = savedProxyUrl;
   if(savedBackendMode) state.backendMode = savedBackendMode;
   if(savedOffline !== null) state.offlineForced = savedOffline === '1';
@@ -2418,6 +2946,14 @@ qtPopulateDomains();
 qtRenderSuggestions();
 showView('home');
 liveInitLangSelects();
+
+try{
+  const savedUiLang = localStorage.getItem('wt_uiLanguage');
+  if(savedUiLang && UI_STRINGS[savedUiLang]) state.uiLanguage = savedUiLang;
+}catch(e){}
+const uiLangSelectEl = document.getElementById('uiLangSelect');
+if(uiLangSelectEl) uiLangSelectEl.value = state.uiLanguage;
+applyUILanguage();
 
 // First-launch onboarding: explain the rotated face-to-face panel design.
 try{

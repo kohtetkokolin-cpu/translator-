@@ -1,71 +1,69 @@
-const CACHE_NAME = 'walkie-translator-v3';
-const CORE_ASSETS = [
+// Walkie-Talkie Translator — service worker
+// Bump this on every deploy so the browser fetches new shell files instead
+// of serving stale ones from cache. app.js already calls reg.update() on
+// every launch and reloads once a new SW takes over, so bumping this is
+// the only step needed to ship an update.
+const CACHE_VERSION = 'wt-shell-v9';
+
+// Only the app shell is cached. API calls (Gemini, any Secure Proxy URL)
+// are deliberately NEVER cached — translations must always be live, and
+// caching a response that carries an API key header would be unsafe.
+const SHELL_FILES = [
+  './',
   './index.html',
   './style.css',
   './data.js',
+  './i18n.js',
   './app.js',
   './manifest.json',
   './icon.svg',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
+    caches.open(CACHE_VERSION)
+      .then((cache) => cache.addAll(SHELL_FILES))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Never intercept the Gemini API — always go straight to the network.
-  if (event.request.url.includes('generativelanguage.googleapis.com')) return;
+  const url = new URL(event.request.url);
 
-  // App shell files change every time you update the app, so they need
-  // network-first treatment (like index.html did before) — otherwise you
-  // could get a fresh index.html paired with a stale cached app.js/style.css,
-  // which causes confusing mismatched-version bugs.
-  const isAppShell =
-    event.request.mode === 'navigate' ||
-    event.request.url.endsWith('index.html') ||
-    event.request.url.endsWith('style.css') ||
-    event.request.url.endsWith('data.js') ||
-    event.request.url.endsWith('app.js') ||
-    event.request.url.endsWith('/');
-
-  if (isAppShell) {
-    // Network-first: always try to fetch the latest version first, so
-    // updates you upload to GitHub show up right away. Only fall back to
-    // the cached copy if there's no internet.
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
+  // Never intercept anything cross-origin (Gemini API, Secure Proxy worker,
+  // Google AI Studio links, etc.) — those must always hit the network.
+  if(url.origin !== self.location.origin){
+    return;
+  }
+  // Only handle simple GETs; let everything else (there shouldn't be any
+  // same-origin POSTs in this app) pass straight through.
+  if(event.request.method !== 'GET'){
     return;
   }
 
-  // Cache-first for static assets (icons, manifest) since they rarely change.
+  // Cache-first for the app shell, with a network fallback that also
+  // refreshes the cache — so the very next launch after a deploy already
+  // has the latest shell cached, even before install/activate cycles.
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
+      const network = fetch(event.request).then((resp) => {
+        if(resp && resp.ok){
+          const copy = resp.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+        }
+        return resp;
       }).catch(() => cached);
+      return cached || network;
     })
   );
 });
