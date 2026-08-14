@@ -7,7 +7,7 @@
 /* =========================================================
    LANGUAGES
 ========================================================= */
-const APP_VERSION = '2026.07.19-r5';
+const APP_VERSION = '2026.07.19-r6';
 
 function showToast(message, type){
   const container = document.getElementById('toastContainer');
@@ -2344,7 +2344,9 @@ function showView(view){
   document.getElementById('panelB').style.display = view === 'conversation' ? 'flex' : 'none';
   document.getElementById('quickPanel').style.display = view === 'quick' ? 'flex' : 'none';
   document.getElementById('livePanel').style.display = view === 'live' ? 'flex' : 'none';
+  document.getElementById('chatsPanel').style.display = view === 'chats' ? 'flex' : 'none';
   document.getElementById('homeBtn').classList.toggle('show', view !== 'home');
+  if(view === 'chats') chatsOnOpen();
 }
 
 document.querySelectorAll('.homeCard').forEach(card => {
@@ -2938,6 +2940,172 @@ try{
     if(savedMsgs) state.messages = JSON.parse(savedMsgs);
   }
 }catch(e){ /* storage unavailable — falls back to blank each launch */ }
+
+/* =========================================================
+   CHATS (Phase 2-4: friends, 1-on-1 + group chat)
+   Data layer lives in firebase-chat.js. This section is just the
+   UI: rendering the list/thread, and wiring up the modals.
+========================================================= */
+let chatsInitialized = false;
+let chatsFriends = [];
+let chatsGroups = [];
+let chatsCurrentThread = null; // { type: 'friend'|'group', id, name }
+let chatsUnsubThread = null;
+
+async function chatsOnOpen(){
+  if(!FIREBASE_CONFIG || FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE'){
+    document.getElementById('chatsList').innerHTML =
+      `<div class="qtEmpty">⚠️ Firebase ကို config မလုပ်ရသေးပါ — FIREBASE_SETUP.md ကို ဖတ်ပါ။</div>`;
+    return;
+  }
+  if(!chatsInitialized){
+    const ok = await fbInit();
+    if(!ok){
+      document.getElementById('chatsList').innerHTML = `<div class="qtEmpty">⚠️ Firebase ချိတ်ဆက်လို့ မရပါ — internet/config စစ်ကြည့်ပါ။</div>`;
+      return;
+    }
+    chatsInitialized = true;
+    fbListenFriends(list => { chatsFriends = list; chatsRenderList(); });
+    fbListenMyGroups(list => { chatsGroups = list; chatsRenderList(); });
+  }
+  document.getElementById('myFriendCodeHint').textContent =
+    `Your code: ${currentUser.friendCode} · ${currentUser.displayName}`;
+  document.getElementById('myFriendCodeBig').textContent = currentUser.friendCode;
+  chatsBackToList();
+}
+
+function chatsRenderList(){
+  const items = [
+    ...chatsFriends.map(f => ({ type: 'friend', id: f.uid, name: f.displayName })),
+    ...chatsGroups.map(g => ({ type: 'group', id: g.id, name: g.name })),
+  ];
+  const el = document.getElementById('chatsList');
+  if(!items.length){
+    el.innerHTML = `<div class="qtEmpty">${t('chatsEmpty')}</div>`;
+    return;
+  }
+  el.innerHTML = items.map(it => `
+    <div class="chatsListItem" data-type="${it.type}" data-id="${it.id}" data-name="${escapeHtml(it.name)}">
+      <div class="chatsAvatar ${it.type === 'group' ? 'group' : ''}">${escapeHtml((it.name||'?').slice(0,1).toUpperCase())}</div>
+      <div class="chatsListMeta">
+        <div class="chatsListName">${it.type === 'group' ? '👥 ' : ''}${escapeHtml(it.name)}</div>
+        <div class="chatsListPreview">${it.type === 'group' ? 'Group' : 'Friend'}</div>
+      </div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.chatsListItem').forEach(row => {
+    row.addEventListener('click', () => {
+      chatsOpenThread(row.dataset.type, row.dataset.id, row.dataset.name);
+    });
+  });
+}
+
+function chatsBackToList(){
+  if(chatsUnsubThread){ chatsUnsubThread(); chatsUnsubThread = null; }
+  chatsCurrentThread = null;
+  document.getElementById('chatsListView').style.display = 'flex';
+  document.getElementById('chatsThreadView').style.display = 'none';
+}
+
+function chatsOpenThread(type, id, name){
+  chatsCurrentThread = { type, id, name };
+  document.getElementById('chatsListView').style.display = 'none';
+  document.getElementById('chatsThreadView').style.display = 'flex';
+  document.getElementById('chatsThreadTitle').textContent = name;
+  if(chatsUnsubThread) chatsUnsubThread();
+  const onMessages = (msgs) => chatsRenderThread(msgs);
+  chatsUnsubThread = type === 'group' ? fbListenGroupChat(id, onMessages) : fbListenDirectChat(id, onMessages);
+}
+
+async function chatsRenderThread(messages){
+  const container = document.getElementById('chatsThreadMessages');
+  const isGroup = chatsCurrentThread && chatsCurrentThread.type === 'group';
+  container.innerHTML = messages.map(m => `
+    ${isGroup && m.senderId !== currentUser.uid ? `<div class="msgSenderName">${escapeHtml(chatsFriendName(m.senderId))}</div>` : ''}
+    <div class="msgBubble ${m.senderId === currentUser.uid ? 'mine' : 'theirs'}" data-mid="${m.id}">${
+      m.senderId === currentUser.uid ? escapeHtml(m.originalText) : '<span class="dotFlicker">translating…</span>'
+    }</div>
+  `).join('');
+  container.scrollTop = container.scrollHeight;
+  for(const m of messages){
+    if(m.senderId !== currentUser.uid){
+      const translated = await fbTranslateIncoming(m.originalText, m.sourceLangCode, state.langB.code);
+      const el = container.querySelector(`.msgBubble[data-mid="${m.id}"]`);
+      if(el){ el.textContent = translated; container.scrollTop = container.scrollHeight; }
+    }
+  }
+}
+
+function chatsFriendName(uid){
+  const f = chatsFriends.find(x => x.uid === uid);
+  return f ? f.displayName : 'Someone';
+}
+
+async function chatsSendCurrentInput(){
+  const input = document.getElementById('chatsInput');
+  const text = input.value.trim();
+  if(!text || !chatsCurrentThread) return;
+  input.value = '';
+  const payload = { originalText: text, sourceLangCode: state.langB.code };
+  if(chatsCurrentThread.type === 'group') await fbSendGroupMessage(chatsCurrentThread.id, payload);
+  else await fbSendDirectMessage(chatsCurrentThread.id, payload);
+}
+
+document.getElementById('chatsThreadBackBtn').addEventListener('click', chatsBackToList);
+document.getElementById('chatsSendBtn').addEventListener('click', chatsSendCurrentInput);
+document.getElementById('chatsInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') chatsSendCurrentInput();
+});
+attachDictation(document.getElementById('chatsInput'), document.getElementById('chatsDictateBtn'), () => state.langB);
+
+document.getElementById('addFriendBtn').addEventListener('click', () => {
+  document.getElementById('addFriendModal').style.display = 'flex';
+});
+document.getElementById('addFriendCloseBtn').addEventListener('click', () => {
+  document.getElementById('addFriendModal').style.display = 'none';
+});
+document.getElementById('addFriendConfirmBtn').addEventListener('click', async () => {
+  const code = document.getElementById('friendCodeInput').value.trim();
+  if(!code) return;
+  const result = await fbAddFriendByCode(code);
+  if(result.ok){
+    showToast(`✅ ${result.displayName} ကို friend list ထဲ ထည့်ပြီးပါပြီ`, 'success');
+    document.getElementById('friendCodeInput').value = '';
+    document.getElementById('addFriendModal').style.display = 'none';
+  } else if(result.reason === 'self'){
+    showToast('ကိုယ့်ကိုယ်ကို friend မထည့်နိုင်ပါ', 'warn');
+  } else {
+    showToast('ဒီ code နဲ့ user မတွေ့ပါ — code ပြန်စစ်ကြည့်ပါ', 'error');
+  }
+});
+
+document.getElementById('newGroupBtn').addEventListener('click', () => {
+  const list = document.getElementById('groupMemberList');
+  if(!chatsFriends.length){
+    list.innerHTML = `<div class="fieldHint">Friend list ထဲမှာ ဘယ်သူမှ မရှိသေးပါ — အရင် friend ထည့်ပါ။</div>`;
+  } else {
+    list.innerHTML = chatsFriends.map(f => `
+      <div class="memberCheckRow">
+        <input type="checkbox" value="${f.uid}" id="member-${f.uid}">
+        <label for="member-${f.uid}">${escapeHtml(f.displayName)}</label>
+      </div>
+    `).join('');
+  }
+  document.getElementById('newGroupModal').style.display = 'flex';
+});
+document.getElementById('newGroupCloseBtn').addEventListener('click', () => {
+  document.getElementById('newGroupModal').style.display = 'none';
+});
+document.getElementById('createGroupConfirmBtn').addEventListener('click', async () => {
+  const name = document.getElementById('groupNameInput').value.trim();
+  if(!name){ showToast('Group name ထည့်ပါ', 'warn'); return; }
+  const checked = Array.from(document.querySelectorAll('#groupMemberList input[type="checkbox"]:checked')).map(c => c.value);
+  if(!checked.length){ showToast('Member အနည်းဆုံး တစ်ယောက် ရွေးပါ', 'warn'); return; }
+  await fbCreateGroup(name, checked);
+  showToast(`✅ "${name}" group ဖန်တီးပြီးပါပြီ`, 'success');
+  document.getElementById('groupNameInput').value = '';
+  document.getElementById('newGroupModal').style.display = 'none';
+});
 
 renderStatusBar();
 renderPanel('A');

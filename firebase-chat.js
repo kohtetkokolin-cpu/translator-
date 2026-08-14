@@ -35,7 +35,14 @@ async function fbInit(){
   fbApp = firebase.initializeApp(FIREBASE_CONFIG);
   fbAuth = firebase.auth();
   fbDb = firebase.firestore();
-  fbStorage = firebase.storage();
+  // Storage is optional — only initialize it if the SDK script was loaded
+  // AND the project has it enabled. Deferred for now (needs the Blaze
+  // plan); file/photo sharing simply stays disabled until it's added.
+  try{
+    if(typeof firebase.storage === 'function') fbStorage = firebase.storage();
+  }catch(e){
+    console.warn('Firebase Storage not available yet — file sharing disabled for now.', e);
+  }
 
   // Anonymous auth: no email/password signup needed. displayName + a
   // short shareable "friend code" are what people actually use to find
@@ -166,6 +173,7 @@ function fbListenMyGroups(callback){
 /* ---------------- File / photo upload ---------------- */
 
 async function fbUploadFile(file, folder){
+  if(!fbStorage) throw new Error('File sharing isn\'t set up yet (Firebase Storage not configured).');
   const path = `${folder}/${currentUser.uid}/${Date.now()}_${file.name}`;
   const ref = fbStorage.ref(path);
   await ref.put(file);
