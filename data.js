@@ -1,8 +1,9 @@
-/* =========================================================
-   data.js — static data: languages, offline dictionary,
-   phrasebook, and work-domain terminology hints.
-   Loaded before app.js (see index.html script order).
-========================================================= */
+/* ==========================================================
+   Walkie-Talkie Translator — static data
+   Language list, offline phrasebook/dictionary. No app logic here;
+   app.js depends on these being loaded first (plain <script> tags
+   share one global scope, so this just needs to load before app.js).
+========================================================== */
 
 const LANGUAGES = [
   {code:'en', name:'English (US)', flag:'🇺🇸', ttsLocale:'en-US'},
@@ -145,6 +146,25 @@ const PHRASES = [
   {en:"I need more time.", my:"ငါ့မှာအချိန်ပိုလိုအပ်တယ်။", zh:"我需要更多时间。", th:"ฉันต้องการเวลาเพิ่มครับ/ค่ะ", fr:"J'ai besoin de plus de temps.", es:"Necesito más tiempo."},
   {en:"Let me think about it.", my:"စဉ်းစားကြည့်ရအောင်။", zh:"让我想一想。", th:"ขอคิดดูก่อนครับ/ค่ะ", fr:"Laissez-moi y réfléchir.", es:"Déjame pensarlo."},
   {en:"I already finished it.", my:"ငါပြီးသွားပြီ။", zh:"我已经完成了。", th:"ฉันทำเสร็จแล้วครับ/ค่ะ", fr:"Je l'ai déjà terminé.", es:"Ya lo terminé."},
+  {en:"I need to see a doctor.", my:"ငါဆရာဝန်ပြချင်ပါတယ်။", zh:"我需要看医生。", th:"ฉันต้องไปหาหมอครับ/ค่ะ", fr:"J'ai besoin de voir un médecin.", es:"Necesito ver a un médico."},
+  {en:"Where is the nearest hospital?", my:"အနီးဆုံးဆေးရုံ ဘယ်မှာလဲ။", zh:"最近的医院在哪里？", th:"โรงพยาบาลที่ใกล้ที่สุดอยู่ที่ไหนครับ/ค่ะ", fr:"Où est l'hôpital le plus proche ?", es:"¿Dónde está el hospital más cercano?"},
+  {en:"I have an allergy to this medicine.", my:"ဒီဆေးကို ငါမတည့်ဘူး။", zh:"我对这个药过敏。", th:"ฉันแพ้ยานี้ครับ/ค่ะ", fr:"Je suis allergique à ce médicament.", es:"Soy alérgico a este medicamento."},
+  {en:"I got injured at work.", my:"အလုပ်မှာ ဒဏ်ရာရသွားတယ်။", zh:"我在工作时受伤了。", th:"ฉันได้รับบาดเจ็บจากการทำงานครับ/ค่ะ", fr:"Je me suis blessé au travail.", es:"Me lesioné en el trabajo."},
+  {en:"Please call an ambulance.", my:"လူနာတင်ကားခေါ်ပေးပါ။", zh:"请叫救护车。", th:"กรุณาเรียกรถพยาบาลครับ/ค่ะ", fr:"Veuillez appeler une ambulance.", es:"Por favor, llame a una ambulancia."},
+  {en:"I haven't been paid this month.", my:"ဒီလ လစာမရသေးပါဘူး။", zh:"我这个月还没领到工资。", th:"ฉันยังไม่ได้รับเงินเดือนของเดือนนี้ครับ/ค่ะ", fr:"Je n'ai pas encore été payé ce mois-ci.", es:"No me han pagado este mes."},
+  {en:"This is less than what we agreed.", my:"ဒါက သဘောတူထားတာထက် နည်းနေတယ်။", zh:"这比我们约定的要少。", th:"นี่น้อยกว่าที่เราตกลงกันไว้ครับ/ค่ะ", fr:"C'est moins que ce que nous avions convenu.", es:"Esto es menos de lo que acordamos."},
+  {en:"Can I see the work contract?", my:"အလုပ်စာချုပ်ကို ကြည့်လို့ရလား။", zh:"我可以看看工作合同吗？", th:"ฉันขอดูสัญญาจ้างงานได้ไหมครับ/ค่ะ", fr:"Puis-je voir le contrat de travail ?", es:"¿Puedo ver el contrato de trabajo?"},
+  {en:"How many hours of overtime is this?", my:"ဒါ အချိန်ပို ဘယ်နှစ်နာရီလဲ။", zh:"这是多少小时的加班？", th:"นี่คือการทำงานล่วงเวลากี่ชั่วโมงครับ/ค่ะ", fr:"Combien d'heures supplémentaires cela représente-t-il ?", es:"¿Cuántas horas extras son estas?"},
+  {en:"I lost my passport.", my:"ငါ့နိုင်ငံကူးလက်မှတ် ပျောက်သွားတယ်။", zh:"我的护照丢了。", th:"หนังสือเดินทางของฉันหายครับ/ค่ะ", fr:"J'ai perdu mon passeport.", es:"Perdí mi pasaporte."},
+  {en:"Where is the immigration office?", my:"လူဝင်မှုကြီးကြပ်ရေး ရုံးဘယ်မှာလဲ။", zh:"移民局在哪里？", th:"สำนักงานตรวจคนเข้าเมืองอยู่ที่ไหนครับ/ค่ะ", fr:"Où se trouve le bureau de l'immigration ?", es:"¿Dónde está la oficina de inmigración?"},
+  {en:"My visa is about to expire.", my:"ငါ့ဗီဇာသက်တမ်း နီးလာပြီ။", zh:"我的签证快要过期了。", th:"วีซ่าของฉันใกล้จะหมดอายุแล้วครับ/ค่ะ", fr:"Mon visa est sur le point d'expirer.", es:"Mi visa está por vencer."},
+  {en:"I need a copy of this document.", my:"ဒီစာရွက်ရဲ့ မိတ္တူတစ်စောင် လိုချင်ပါတယ်။", zh:"我需要这份文件的副本。", th:"ฉันต้องการสำเนาเอกสารนี้ครับ/ค่ะ", fr:"J'ai besoin d'une copie de ce document.", es:"Necesito una copia de este documento."},
+  {en:"Is this place safe to work in?", my:"ဒီနေရာက အလုပ်လုပ်ဖို့ ဘေးကင်းလား။", zh:"这个地方工作安全吗？", th:"ที่นี่ทำงานปลอดภัยไหมครับ/ค่ะ", fr:"Est-ce que cet endroit est sûr pour travailler ?", es:"¿Es seguro trabajar en este lugar?"},
+  {en:"The landlord raised the rent.", my:"အိမ်ရှင်က အိမ်ခ တိုးလိုက်တယ်။", zh:"房东涨房租了。", th:"เจ้าของบ้านขึ้นค่าเช่าครับ/ค่ะ", fr:"Le propriétaire a augmenté le loyer.", es:"El propietario subió el alquiler."},
+  {en:"The electricity is not working.", my:"မီးမလာဘူး။", zh:"停电了。", th:"ไฟฟ้าไม่ทำงานครับ/ค่ะ", fr:"L'électricité ne fonctionne pas.", es:"No hay electricidad."},
+  {en:"Please give me a receipt.", my:"ငွေရရှိကြောင်း ပြေစာပေးပါ။", zh:"请给我一张收据。", th:"กรุณาให้ใบเสร็จด้วยครับ/ค่ะ", fr:"Veuillez me donner un reçu.", es:"Por favor, deme un recibo."},
+  {en:"I want to report a problem.", my:"ပြဿနာတစ်ခု တိုင်ကြားချင်ပါတယ်။", zh:"我想举报一个问题。", th:"ฉันต้องการแจ้งปัญหาครับ/ค่ะ", fr:"Je veux signaler un problème.", es:"Quiero reportar un problema."},
+  {en:"Please don't worry.", my:"စိတ်မပူပါနဲ့။", zh:"请不要担心。", th:"ไม่ต้องกังวลครับ/ค่ะ", fr:"Ne vous inquiétez pas.", es:"No se preocupe."},
 ];
 
 const WORDS = [
@@ -215,6 +235,45 @@ const WORDS = [
   {en:"problem", my:"ပြဿနာ", zh:"问题", th:"ปัญหา", fr:"problème", es:"problema"},
   {en:"correct", my:"မှန်တယ်", zh:"正确", th:"ถูกต้อง", fr:"correct", es:"correcto"},
   {en:"wrong", my:"မှားတယ်", zh:"错误", th:"ผิด", fr:"faux", es:"incorrecto"},
+  {en:"four", my:"လေး", zh:"四", th:"สี่", fr:"quatre", es:"cuatro"},
+  {en:"five", my:"ငါး", zh:"五", th:"ห้า", fr:"cinq", es:"cinco"},
+  {en:"six", my:"ခြောက်", zh:"六", th:"หก", fr:"six", es:"seis"},
+  {en:"seven", my:"ခုနှစ်", zh:"七", th:"เจ็ด", fr:"sept", es:"siete"},
+  {en:"eight", my:"ရှစ်", zh:"八", th:"แปด", fr:"huit", es:"ocho"},
+  {en:"nine", my:"ကိုး", zh:"九", th:"เก้า", fr:"neuf", es:"nueve"},
+  {en:"ten", my:"ဆယ်", zh:"十", th:"สิบ", fr:"dix", es:"diez"},
+  {en:"hundred", my:"ရာ", zh:"百", th:"ร้อย", fr:"cent", es:"cien"},
+  {en:"thousand", my:"ထောင်", zh:"千", th:"พัน", fr:"mille", es:"mil"},
+  {en:"Monday", my:"တနင်္လာနေ့", zh:"星期一", th:"วันจันทร์", fr:"lundi", es:"lunes"},
+  {en:"Tuesday", my:"အင်္ဂါနေ့", zh:"星期二", th:"วันอังคาร", fr:"mardi", es:"martes"},
+  {en:"Wednesday", my:"ဗုဒ္ဓဟူးနေ့", zh:"星期三", th:"วันพุธ", fr:"mercredi", es:"miércoles"},
+  {en:"Thursday", my:"ကြာသပတေးနေ့", zh:"星期四", th:"วันพฤหัสบดี", fr:"jeudi", es:"jueves"},
+  {en:"Friday", my:"သောကြာနေ့", zh:"星期五", th:"วันศุกร์", fr:"vendredi", es:"viernes"},
+  {en:"Saturday", my:"စနေနေ့", zh:"星期六", th:"วันเสาร์", fr:"samedi", es:"sábado"},
+  {en:"Sunday", my:"တနင်္ဂနွေနေ့", zh:"星期天", th:"วันอาทิตย์", fr:"dimanche", es:"domingo"},
+  {en:"salary", my:"လစာ", zh:"工资", th:"เงินเดือน", fr:"salaire", es:"salario"},
+  {en:"overtime", my:"အချိန်ပို", zh:"加班", th:"ทำงานล่วงเวลา", fr:"heures supplémentaires", es:"horas extras"},
+  {en:"boss", my:"အထက်လူကြီး", zh:"老板", th:"เจ้านาย", fr:"patron", es:"jefe"},
+  {en:"contract", my:"စာချုပ်", zh:"合同", th:"สัญญา", fr:"contrat", es:"contrato"},
+  {en:"passport", my:"နိုင်ငံကူးလက်မှတ်", zh:"护照", th:"หนังสือเดินทาง", fr:"passeport", es:"pasaporte"},
+  {en:"police", my:"ရဲ", zh:"警察", th:"ตำรวจ", fr:"police", es:"policía"},
+  {en:"hospital", my:"ဆေးရုံ", zh:"医院", th:"โรงพยาบาล", fr:"hôpital", es:"hospital"},
+  {en:"doctor", my:"ဆရာဝန်", zh:"医生", th:"หมอ", fr:"médecin", es:"médico"},
+  {en:"medicine", my:"ဆေးဝါး", zh:"药", th:"ยา", fr:"médicament", es:"medicina"},
+  {en:"pain", my:"နာကျင်မှု", zh:"疼痛", th:"อาการปวด", fr:"douleur", es:"dolor"},
+  {en:"injury", my:"ဒဏ်ရာ", zh:"受伤", th:"บาดเจ็บ", fr:"blessure", es:"lesión"},
+  {en:"blood", my:"သွေး", zh:"血", th:"เลือด", fr:"sang", es:"sangre"},
+  {en:"fever", my:"အဖျား", zh:"发烧", th:"ไข้", fr:"fièvre", es:"fiebre"},
+  {en:"emergency", my:"အရေးပေါ်", zh:"紧急情况", th:"เหตุฉุกเฉิน", fr:"urgence", es:"emergencia"},
+  {en:"ambulance", my:"လူနာတင်ကား", zh:"救护车", th:"รถพยาบาล", fr:"ambulance", es:"ambulancia"},
+  {en:"rent", my:"အိမ်ငှားခ", zh:"房租", th:"ค่าเช่า", fr:"loyer", es:"alquiler"},
+  {en:"landlord", my:"အိမ်ရှင်", zh:"房东", th:"เจ้าของบ้าน", fr:"propriétaire", es:"propietario"},
+  {en:"electricity", my:"မီးလျှပ်စစ်", zh:"电", th:"ไฟฟ้า", fr:"électricité", es:"electricidad"},
+  {en:"danger", my:"အန္တရာယ်", zh:"危险", th:"อันตราย", fr:"danger", es:"peligro"},
+  {en:"safe", my:"ဘေးကင်းတယ်", zh:"安全", th:"ปลอดภัย", fr:"sûr", es:"seguro"},
+  {en:"machine", my:"စက်ပစ္စည်း", zh:"机器", th:"เครื่องจักร", fr:"machine", es:"máquina"},
+  {en:"document", my:"စာရွက်စာတမ်း", zh:"文件", th:"เอกสาร", fr:"document", es:"documento"},
+  {en:"signature", my:"လက်မှတ်", zh:"签名", th:"ลายเซ็น", fr:"signature", es:"firma"},
 ];
 
 /**
@@ -238,134 +297,3 @@ try{
   if(raw) translationMemory = JSON.parse(raw);
 }catch(e){ translationMemory = {}; }
 
-function tmNormalize(text){
-  return text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[။၊.,!?]+$/g, '');
-}
-function tmKey(srcCode, tgtCode, text){
-  return srcCode + '|' + tgtCode + '|' + tmNormalize(text);
-}
-function tmLookup(srcCode, tgtCode, text){
-  return translationMemory[tmKey(srcCode, tgtCode, text)] || null;
-}
-function tmSave(srcCode, tgtCode, original, translated){
-  if(!original || !translated) return;
-  translationMemory[tmKey(srcCode, tgtCode, original)] = translated;
-  try{
-    const keys = Object.keys(translationMemory);
-    // Keep the memory from growing without bound on very long-lived installs.
-    if(keys.length > 600){
-      keys.slice(0, keys.length - 600).forEach(k => delete translationMemory[k]);
-    }
-    localStorage.setItem('wt_translationMemory', JSON.stringify(translationMemory));
-  }catch(e){ /* storage full or unavailable — memory still works for this session */ }
-}
-
-const WORK_DOMAINS = [
-  {
-    code: 'general', label: '🌐 General (No specific domain)',
-    hint: '',
-    suggestions: [],
-  },
-  {
-    code: 'electronics', label: '🔌 Electronics / PCB Factory',
-    hint: 'This conversation takes place in an electronics / PCB (printed circuit board) manufacturing factory. Use accurate industry-standard technical terminology for concepts like SMT (surface-mount technology), reflow soldering, pick-and-place machines, solder paste, wave soldering, PCB inspection, quality control (QC), defect rate, ESD (electrostatic discharge) precautions, and production line workflow — translate the way an experienced factory worker or engineer in this industry would actually say it, not literally word-for-word.',
-    suggestions: [
-      "What is today's defect rate?",
-      "Please check this solder joint again.",
-      "The machine needs maintenance.",
-      "How many units per hour is the target?",
-      "This board failed quality inspection.",
-      "Please wear your ESD wrist strap.",
-      "The reflow oven temperature looks wrong.",
-      "We are short of components for this line.",
-    ],
-  },
-  {
-    code: 'factory_general', label: '🏭 General Factory / Manufacturing',
-    hint: 'This conversation takes place in a general manufacturing factory. Use accurate terminology for production lines, shift schedules, machine operation, safety procedures, quality control, and factory management — the way a factory supervisor or worker would naturally say it.',
-    suggestions: [
-      "What time does the next shift start?",
-      "Please report any injury immediately.",
-      "This machine is not working properly.",
-      "We need more raw materials.",
-      "Please follow the safety procedure.",
-      "How many pieces did we produce today?",
-    ],
-  },
-  {
-    code: 'construction', label: '🏗️ Construction Site',
-    hint: 'This conversation takes place on a construction site. Use accurate terminology for scaffolding, rebar, concrete pouring, safety harnesses, blueprints, the foreman, crane operation, and building codes — the way an experienced construction worker would say it.',
-    suggestions: [
-      "Please wear your safety helmet and harness.",
-      "This scaffolding looks unstable.",
-      "We need more cement/concrete.",
-      "Where are the blueprints for this floor?",
-      "Please stop the crane, it's not safe.",
-      "This area is dangerous, do not enter.",
-    ],
-  },
-  {
-    code: 'kitchen', label: '🍳 Restaurant / Kitchen',
-    hint: 'This conversation takes place in a restaurant or food-service kitchen. Use accurate terminology for food preparation, kitchen equipment, food safety/hygiene, and service — the way kitchen staff would naturally say it.',
-    suggestions: [
-      "This needs to be cooked more.",
-      "Please wash your hands before handling food.",
-      "We are out of this ingredient.",
-      "This customer has a food allergy.",
-      "The kitchen needs to be cleaned now.",
-    ],
-  },
-  {
-    code: 'domestic', label: '🏠 Domestic / Housekeeping / Caregiving',
-    hint: 'This conversation takes place in a household setting (housekeeping, childcare, or eldercare). Use natural, warm, everyday terminology appropriate for a home setting — precision matters especially for care/medical instructions.',
-    suggestions: [
-      "What time should I pick up the children?",
-      "Please take this medicine after eating.",
-      "The baby needs a diaper change.",
-      "I finished cleaning the house.",
-      "Please call me if there is an emergency.",
-    ],
-  },
-  {
-    code: 'logistics', label: '🚚 Warehouse / Logistics',
-    hint: 'This conversation takes place in a warehouse/logistics setting. Use accurate terminology for inventory, shipping, forklift operation, loading docks, packing, and supply chain workflow — the way warehouse staff would say it.',
-    suggestions: [
-      "Where should this shipment go?",
-      "Please check the inventory count.",
-      "The forklift needs to move this pallet.",
-      "This package is damaged.",
-      "When is the next delivery truck arriving?",
-    ],
-  },
-  {
-    code: 'agriculture', label: '🌾 Farm / Agriculture',
-    hint: 'This conversation takes place on a farm/agricultural setting. Use accurate terminology for crops, livestock, farming equipment, irrigation, and seasonal work — the way farm workers would say it.',
-    suggestions: [
-      "When should we harvest this crop?",
-      "The irrigation system is not working.",
-      "This animal looks sick.",
-      "We need more fertilizer.",
-      "The weather looks bad for today's work.",
-    ],
-  },
-  {
-    code: 'healthcare', label: '⚕️ Healthcare / Caregiving',
-    hint: 'This conversation takes place in a healthcare or caregiving setting. Use accurate, careful medical/care terminology — be extra precise, since translation errors here could affect someone\'s health and safety.',
-    suggestions: [
-      "Where does it hurt?",
-      "Please take this medicine twice a day.",
-      "Do you have any allergies?",
-      "We need to call an ambulance.",
-      "Please rest and drink plenty of water.",
-    ],
-  },
-];
-const domainByCode = c => WORK_DOMAINS.find(d => d.code === c) || WORK_DOMAINS[0];
-const PB_CATEGORIES = [
-  {key:'emergency', label:'🚨 Emergency'},
-  {key:'medical', label:'🏥 Medical'},
-  {key:'workplace', label:'💼 Workplace'},
-  {key:'housing', label:'🏠 Housing'},
-  {key:'wages', label:'💰 Wages'},
-  {key:'immigration', label:'✈️ Immigration'},
-];
