@@ -1,3 +1,9 @@
-git add firebase-config.js .gitignore
-git commit -m "Fix exposed API key issue"
-git push origin main
+# The real Firebase config — generated at deploy time by GitHub Actions
+# from firebase-config.template.js + repo Secrets. Never commit the real
+# one; if you want to test locally, copy firebase-config.template.js to
+# firebase-config.js and fill in your real values (it'll stay untracked).
+firebase-config.js
+
+# Local env files, in case you use any for local testing.
+.env
+.env.*
